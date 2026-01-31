@@ -373,8 +373,6 @@ def vip_back_callback(call):
         
         if current_vip["level"] > 0:
             kb.row(InlineKeyboardButton("💰 Продать VIP", callback_data=f"sell_vip_{user_id}"))
-        
-        kb.row(InlineKeyboardButton("⬅️ Назад", callback_data=f"menu_main_{user_id}"))
 
         bot.edit_message_text(
             text,
@@ -842,7 +840,7 @@ def activate_cheque(message):
 
     bot.send_message(
         message.chat.id,
-        f"Ты активировал чек и получил <b>{cheque['amount']} на свой баланс!</b>!",
+        f"Ты активировал чек и получил <b>{cheque['amount']} на свой баланс!</b>",
         parse_mode="HTML"
     )
 
@@ -904,9 +902,9 @@ def inline_create_cheque(query):
     link = f"https://t.me/{bot_username}?start=check_{code}"
 
     text = (
-        f"🧾 <b>Чек на {amount} 💰</b>\n"
+        f"🧾 <b>Чек на {amount}</b>\n"
         f"🪪 Активаций: <b>{max_acts}</b>\n"
-        f"💎 Награда: <b>{amount} 💰</b>\n\n"
+        f"💎 Награда: <b>{amount}</b>\n\n"
     )
 
     markup = telebot.types.InlineKeyboardMarkup()
@@ -956,7 +954,7 @@ def list_cheques(message):
 
         
 # ================== РЕФЕРАЛЬНАЯ СИСТЕМА (SQLite) ==================
-REFERRAL_BONUS = 2500
+REFERRAL_BONUS = 15000
 DB_FILE = "referrals.db"
 
 # Инициализация базы данных
@@ -1146,7 +1144,7 @@ def cmd_start(message):
     )
 
 # ================== КОМАНДЫ РЕФЕРАЛЬНОЙ СИСТЕМЫ ==================
-@bot.message_handler(func=lambda m: m.text and m.text.lower() in ["реф", "реферал", "мой реферал", "рефералка"])
+@bot.message_handler(func=lambda m: m.text and m.text.lower() in ["реф", "реферал", "мой кабинет", "рефералка"])
 def referral_cabinet(message):
     user_id = message.from_user.id
     ref_data = get_user_referral_data(user_id)
@@ -2165,6 +2163,379 @@ def already_claimed_today(call):
 
 print("✅ Новогодний календарь загружен и готов к работе! 🎄")
 
+
+# ================== СИСТЕМА СБОРА МУСОРА ==================
+TRASH_DB = "trash.db"
+
+# Инициализация базы данных для мусора
+def init_trash_db():
+    conn = sqlite3.connect(TRASH_DB)
+    c = conn.cursor()
+    
+    # Таблица для инвентаря пользователей
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS trash_inventory (
+            user_id INTEGER PRIMARY KEY,
+            items TEXT DEFAULT '{}',
+            last_collected_time REAL DEFAULT 0
+        )
+    """)
+    
+    conn.commit()
+    conn.close()
+
+init_trash_db()
+
+# Данные мусора
+TRASH_ITEMS = {
+    "🍂 Листья": {"price": 15, "emoji": "🍂"},
+    "🥤 Бутылка": {"price": 50, "emoji": "🥤"},
+    "📰 Бумага": {"price": 20, "emoji": "📰"},
+    "🍌 Банан": {"price": 20, "emoji": "🍌"},
+    "🚬 Окурок": {"price": 40, "emoji": "🚬"},
+    "🧦 Носок": {"price": 50, "emoji": "🧦"},
+    "🧴 Флакон": {"price": 100, "emoji": "🧴"},
+    "🍕 Пицца": {"price": 30, "emoji": "🍕"},
+    "🥫 Банка": {"price": 40, "emoji": "🥫"},
+    "📱 Телефон": {"price": 400, "emoji": "📱"},
+    "🧩 Игрушка": {"price": 200, "emoji": "🧩"},
+    "💄 Помада": {"price": 300, "emoji": "💄"},
+    "🧢 Кепка": {"price": 100, "emoji": "🧢"},
+    "🍬 Фантик": {"price": 20, "emoji": "🍬"},
+    "💍 Кольцо": {"price": 3000, "emoji": "💍"}
+}
+
+def get_user_trash_inventory(user_id):
+    """Получает инвентарь пользователя"""
+    conn = sqlite3.connect(TRASH_DB)
+    c = conn.cursor()
+    
+    c.execute("SELECT items, last_collected_time FROM trash_inventory WHERE user_id = ?", (user_id,))
+    result = c.fetchone()
+    
+    if not result:
+        # Создаем запись если нет
+        c.execute("INSERT INTO trash_inventory (user_id) VALUES (?)", (user_id,))
+        conn.commit()
+        conn.close()
+        return {"items": {}, "last_collected_time": 0}
+    
+    items_json, last_collected_time = result
+    
+    try:
+        items = json.loads(items_json) if items_json else {}
+    except:
+        items = {}
+    
+    conn.close()
+    return {"items": items, "last_collected_time": last_collected_time}
+
+def update_user_trash_inventory(user_id, items, last_collected_time):
+    """Обновляет инвентарь пользователя"""
+    conn = sqlite3.connect(TRASH_DB)
+    c = conn.cursor()
+    
+    items_json = json.dumps(items)
+    c.execute("""
+        INSERT OR REPLACE INTO trash_inventory 
+        (user_id, items, last_collected_time) 
+        VALUES (?, ?, ?)
+    """, (user_id, items_json, last_collected_time))
+    
+    conn.commit()
+    conn.close()
+
+def can_collect_trash(user_id):
+    """Проверяет, может ли пользователь собирать мусор"""
+    inventory = get_user_trash_inventory(user_id)
+    current_time = time.time()
+    return current_time - inventory["last_collected_time"] >= 2  # 2 секунды кулдаун
+
+def get_random_trash():
+    """Возвращает случайный мусор с учетом вероятностей"""
+    # 70% шанс найти что-то, 30% шанс ничего не найти
+    if random.random() > 0.7:
+        return None
+    
+    # Взвешенная вероятность: более дешевые предметы встречаются чаще
+    weighted_items = []
+    for item_name, item_data in TRASH_ITEMS.items():
+        weight = 10 if item_data["price"] < 100 else 5 if item_data["price"] < 500 else 2 if item_data["price"] < 1000 else 1
+        weighted_items.extend([item_name] * weight)
+    
+    return random.choice(weighted_items)
+
+def add_item_to_inventory(user_id, item_name):
+    """Добавляет предмет в инвентарь пользователя"""
+    inventory = get_user_trash_inventory(user_id)
+    items = inventory["items"]
+    
+    if item_name in items:
+        items[item_name] += 1
+    else:
+        items[item_name] = 1
+    
+    update_user_trash_inventory(user_id, items, time.time())
+    return items
+
+def calculate_total_value(items):
+    """Вычисляет общую стоимость всех предметов"""
+    total = 0
+    for item_name, count in items.items():
+        if item_name in TRASH_ITEMS:
+            total += TRASH_ITEMS[item_name]["price"] * count
+    return total
+
+# ================== КОМАНДА: НАЧАТЬ СБОРКУ МУСОРА ==================
+@bot.message_handler(func=lambda m: m.text and m.text.lower() in ["начать сборку мусора", "сборка мусора"])
+def start_trash_collection(message):
+    """Начинает сбор мусора"""
+    user_id = message.from_user.id
+    mention = f'<a href="tg://user?id={user_id}">{message.from_user.first_name}</a>'
+    
+    text = f"{mention}, Начни собирать мусор и зарабатывать на этом деньги по кнопке ниже ↓"
+    
+    kb = InlineKeyboardMarkup()
+    kb.add(InlineKeyboardButton("🗑️ Собрать мусор", callback_data=f"collect_trash_{user_id}"))
+    
+    bot.send_message(message.chat.id, text, parse_mode="HTML", reply_markup=kb)
+
+# ================== КНОПКА: СОБРАТЬ МУСОР ==================
+@bot.callback_query_handler(func=lambda c: c.data.startswith("collect_trash_"))
+def collect_trash_callback(call):
+    """Обработка сбора мусора"""
+    try:
+        user_id = int(call.data.split("_")[2])
+        
+        # Проверка: может ли нажимать только владелец кнопки
+        if call.from_user.id != user_id:
+            bot.answer_callback_query(call.id, "Чужие мусорные пакеты смотреть плохо - Атата 🫣", show_alert=True)
+            return
+        
+        # Проверка кулдауна
+        if not can_collect_trash(user_id):
+            bot.answer_callback_query(call.id, "⏳ Подожди 2 секунды перед следующим сбором!", show_alert=True)
+            return
+        
+        # Получаем случайный мусор
+        found_item = get_random_trash()
+        mention = f'<a href="tg://user?id={user_id}">{call.from_user.first_name}</a>'
+        
+        if found_item:
+            # Добавляем предмет в инвентарь
+            item_data = TRASH_ITEMS[found_item]
+            add_item_to_inventory(user_id, found_item)
+            
+            text = f"{mention}, собирая мусор ты нашёл <code>{found_item}</code>"
+            
+            # Обновляем сообщение с той же кнопкой
+            kb = InlineKeyboardMarkup()
+            kb.add(InlineKeyboardButton("🗑️ Собрать мусор", callback_data=f"collect_trash_{user_id}"))
+            
+            bot.edit_message_text(
+                text,
+                call.message.chat.id,
+                call.message.message_id,
+                parse_mode="HTML",
+                reply_markup=kb
+            )
+            bot.answer_callback_query(call.id, f"✅ Найдено: {found_item}")
+        else:
+            text = f"{mention}, собирая мусор ты не нашёл ничего ценного."
+            
+            kb = InlineKeyboardMarkup()
+            kb.add(InlineKeyboardButton("🗑️ Собрать мусор", callback_data=f"collect_trash_{user_id}"))
+            
+            bot.edit_message_text(
+                text,
+                call.message.chat.id,
+                call.message.message_id,
+                parse_mode="HTML",
+                reply_markup=kb
+            )
+            bot.answer_callback_query(call.id, "❌ Ничего не найдено")
+            
+    except Exception as e:
+        logger.error(f"Ошибка сбора мусора: {e}")
+        bot.answer_callback_query(call.id, "❌ Ошибка при сборе мусора!", show_alert=True)
+
+# ================== КОМАНДА: МОЙ ИНВЕНТАРЬ ==================
+@bot.message_handler(func=lambda m: m.text and m.text.lower() in ["мой инвентарь", "мой инв", "инвентарь"])
+def show_trash_inventory(message):
+    """Показывает инвентарь пользователя"""
+    user_id = message.from_user.id
+    mention = f'<a href="tg://user?id={user_id}">{message.from_user.first_name}</a>'
+    
+    inventory = get_user_trash_inventory(user_id)
+    items = inventory["items"]
+    
+    if not items:
+        text = f"{mention}, твой мусорный пакет пуст. Начни собирать мусор!"
+    else:
+        text = f"{mention}, в твоём мусорном пакете лежат:\n\n"
+        
+        for item_name, count in items.items():
+            if item_name in TRASH_ITEMS:
+                item_data = TRASH_ITEMS[item_name]
+                item_value = item_data["price"] * count
+                text += f"{item_data['emoji']} {item_name} ×{count} — {item_value}$\n"
+        
+        total_value = calculate_total_value(items)
+        text += f"\n💰 Продать все можно за <b>{format_number(total_value)}$</b>"
+    
+    kb = InlineKeyboardMarkup()
+    
+    if items:
+        kb.add(InlineKeyboardButton("💰 Продать всё", callback_data=f"sell_all_trash_{user_id}"))
+    
+    kb.add(InlineKeyboardButton("🗑️ Собрать мусор", callback_data=f"collect_trash_{user_id}"))
+    
+    bot.send_message(message.chat.id, text, parse_mode="HTML", reply_markup=kb)
+
+# ================== КНОПКА: ПРОДАТЬ ВСЁ ==================
+@bot.callback_query_handler(func=lambda c: c.data.startswith("sell_all_trash_"))
+def sell_all_trash_callback(call):
+    """Обработка продажи всего мусора"""
+    try:
+        user_id = int(call.data.split("_")[3])
+        
+        # Проверка: может ли нажимать только владелец кнопки
+        if call.from_user.id != user_id:
+            bot.answer_callback_query(call.id, "❌ Это не твой мусорный пакет!", show_alert=True)
+            return
+        
+        inventory = get_user_trash_inventory(user_id)
+        items = inventory["items"]
+        
+        if not items:
+            bot.answer_callback_query(call.id, "❌ Твой мусорный пакет пуст!", show_alert=True)
+            return
+        
+        total_value = calculate_total_value(items)
+        mention = f'<a href="tg://user?id={user_id}">{call.from_user.first_name}</a>'
+        
+        text = f"{mention}, ты хочешь продать все вещи за <b>{format_number(total_value)}$</b>?\n\nВы точно хотите продать все вещи?"
+        
+        kb = InlineKeyboardMarkup(row_width=2)
+        kb.add(
+            InlineKeyboardButton("✅ Да", callback_data=f"confirm_sell_all_{user_id}"),
+            InlineKeyboardButton("❌ Нет", callback_data=f"cancel_sell_all_{user_id}")
+        )
+        
+        bot.edit_message_text(
+            text,
+            call.message.chat.id,
+            call.message.message_id,
+            parse_mode="HTML",
+            reply_markup=kb
+        )
+        
+        bot.answer_callback_query(call.id)
+        
+    except Exception as e:
+        logger.error(f"Ошибка продажи мусора: {e}")
+        bot.answer_callback_query(call.id, "❌ Ошибка при продаже!", show_alert=True)
+
+# ================== КНОПКА: ПОДТВЕРДИТЬ ПРОДАЖУ ==================
+@bot.callback_query_handler(func=lambda c: c.data.startswith("confirm_sell_all_"))
+def confirm_sell_all_callback(call):
+    """Подтверждение продажи всего мусора"""
+    try:
+        user_id = int(call.data.split("_")[3])
+        
+        # Проверка: может ли нажимать только владелец кнопки
+        if call.from_user.id != user_id:
+            bot.answer_callback_query(call.id, "❌ Это не твой мусорный пакет!", show_alert=True)
+            return
+        
+        # Получаем инвентарь и вычисляем стоимость
+        inventory = get_user_trash_inventory(user_id)
+        items = inventory["items"]
+        total_value = calculate_total_value(items)
+        
+        # Начисляем деньги на баланс
+        user_data = get_user_data(user_id)
+        user_data["balance"] += total_value
+        save_casino_data()
+        
+        # Очищаем инвентарь
+        update_user_trash_inventory(user_id, {}, inventory["last_collected_time"])
+        
+        mention = f'<a href="tg://user?id={user_id}">{call.from_user.first_name}</a>'
+        
+        text = f"{mention}, ты продал все найденные вещи за <b>{format_number(total_value)}$</b>. Деньги уже на твоём счёту работяга 😸"
+        
+        # Обновляем сообщение без кнопок
+        bot.edit_message_text(
+            text,
+            call.message.chat.id,
+            call.message.message_id,
+            parse_mode="HTML"
+        )
+        
+        bot.answer_callback_query(call.id, f"✅ Получено: {format_number(total_value)}$")
+        
+    except Exception as e:
+        logger.error(f"Ошибка подтверждения продажи: {e}")
+        bot.answer_callback_query(call.id, "❌ Ошибка при продаже!", show_alert=True)
+
+# ================== КНОПКА: ОТМЕНИТЬ ПРОДАЖУ ==================
+@bot.callback_query_handler(func=lambda c: c.data.startswith("cancel_sell_all_"))
+def cancel_sell_all_callback(call):
+    """Отмена продажи всего мусора"""
+    try:
+        user_id = int(call.data.split("_")[3])
+        
+        # Проверка: может ли нажимать только владелец кнопки
+        if call.from_user.id != user_id:
+            bot.answer_callback_query(call.id, "❌ Это не твой мусорный пакет!", show_alert=True)
+            return
+        
+        mention = f'<a href="tg://user?id={user_id}">{call.from_user.first_name}</a>'
+        
+        text = f"{mention}, ты отменил продажу всех найденных вещей, всё остаётся в твоём мусорном пакете"
+        
+        # Возвращаем к просмотру инвентаря
+        inventory = get_user_trash_inventory(user_id)
+        items = inventory["items"]
+        
+        if items:
+            text = f"{mention}, в твоём мусорном пакете лежат:\n\n"
+            
+            for item_name, count in items.items():
+                if item_name in TRASH_ITEMS:
+                    item_data = TRASH_ITEMS[item_name]
+                    item_value = item_data["price"] * count
+                    text += f"{item_data['emoji']} {item_name} ×{count} — {item_value}$\n"
+            
+            total_value = calculate_total_value(items)
+            text += f"\n💰 Продать все можно за <b>{format_number(total_value)}$</b>"
+            
+            kb = InlineKeyboardMarkup()
+            kb.add(InlineKeyboardButton("💰 Продать всё", callback_data=f"sell_all_trash_{user_id}"))
+            kb.add(InlineKeyboardButton("🗑️ Собрать мусор", callback_data=f"collect_trash_{user_id}"))
+        else:
+            text = f"{mention}, твой мусорный пакет пуст. Начни собирать мусор!"
+            kb = InlineKeyboardMarkup()
+            kb.add(InlineKeyboardButton("🗑️ Собрать мусор", callback_data=f"collect_trash_{user_id}"))
+        
+        bot.edit_message_text(
+            text,
+            call.message.chat.id,
+            call.message.message_id,
+            parse_mode="HTML",
+            reply_markup=kb
+        )
+        
+        bot.answer_callback_query(call.id, "❌ Продажа отменена")
+        
+    except Exception as e:
+        logger.error(f"Ошибка отмены продажи: {e}")
+        bot.answer_callback_query(call.id, "❌ Ошибка при отмене!", show_alert=True)
+
+print("✅ Система сбора мусора загружена и готова к работе! 🗑️")
+
+
 PREFIX_DB = "prefixes.db"
 
 # ======================================================
@@ -2352,48 +2723,48 @@ init_prefix_db()
 print("✅ Улучшенная система префиксов загружена и готова к работе")
 
 
-# ================== КОМАНДА ПРАВИЛА ==================
+# ================== ПРАВИЛА БОТА (УЛУЧШЕННЫЕ И КРАТКИЕ) ==================
 @bot.message_handler(func=lambda m: m.text and m.text.lower() in ["правила бота", "правила", "правило"])
 def rules_command(message):
     rules_text = """
-🎮<b>ПРАВИЛА MEOW GAME И <a href="https://t.me/meowchatgame">ЧАТА</a></b>🎮
+🔴 <b>ПРАВИЛА MEOW GAME</b> 
 
-<b>1.1) Оскорбление Личности Без причины(Касаеться администрации)</b>
-<blockquote>Наказание: Мут, Бан, Варн</blockquote>
+<b>Основные правила поведения:</b>
 
-<b>1.2) Попрошаничество Монет, Привилегии, И прочее</b>
-<blockquote>Наказание: Варн, Мут</blockquote>
+1️⃣ <b>Уважение к другим</b>
+• Жёсткие оскорбления и угрозы
+• Дискриминация, расизм
+• Провокации на конфликты
+<i>Наказание: Мут 60-180 минут</i>
 
-<b>1.3) Терроризм, Пропаганда Накркотических Средств</b>
-<blockquote>Наказание: Бан Навсегда, ЧСБ</blockquote>
+2️⃣ <b>Запрещенный контент</b>
+• Пропаганда наркотиков, насилия
+• Политические споры
+• Сексуальный контент в никах/аватарах
+<i>Наказание: Мут 120-300 минут</i>
 
-<b>1.4) Спам, Флуд (Спам Считаеться более 4 сообщение за раз)</b>
-<blockquote>Наказание: Мут, Варн</blockquote>
+3️⃣ <b>Реклама и спам</b>
+• Реклама каналов, сайтов, проектов
+• Флуд (более 4 сообщений подряд)
+• Ссылки на сторонние ресурсы
+<i>Наказание: Мут 30-90 минут</i>
 
-<b>1.5) Реклама Ютуб Каналов/Личных Сайтов/Каналов и Прочего</b>
-<blockquote>Наказание: Бан, Мут</blockquote>
+4️⃣ <b>Мошенничество</b>
+• Обман других игроков
+• Продажа аккаунтов в сторонних сервисах
+• Выдача себя за администратора
+<i>Наказание: Мут 180-360 минут</i>
 
-<b>1.6) Обман На Привелегий, Донаты, Монеты и Прочего</b>
-<blockquote>Наказание: Бан, Мут, ЧСБ</blockquote>
+5️⃣ <b>Работа с администрацией</b>
+• Спам администраторам не по делу
+• Критика без конструктивного диалога
+• Нарушение указаний администраторов
+<i>Наказание: Мут 60-180 минут</i>
 
-<b>1.7) Сторонняя Продажа Монет/Привелегий/Аккаунтов</b>
-<blockquote>Наказание: ЧСБ, Бан</blockquote>
+━━━━━━━━━━━━━━━━━━━
+<b>Важно:</b> Администрация оставляет за собой право выносить наказания по своему усмотрению в зависимости от ситуации.
 
-<b>1.8) Выдача Себя за Создателя/Администатора Бота</b>
-<blockquote>Наказание: Бан, ЧСБ</blockquote>
-
-<b>1.9) Запрещены Ники Которые Содержат Сексуальный Контент</b>
-<blockquote>Наказание: Бан, ЧСБ</blockquote>
-
-<b>2.0) Не писать Администаторам Не по делу</b>
-<blockquote>Наказание: Мут, ЧСА</blockquote>
-
-<b>2.1) Не распростронять Политику Стран, Расизм И Прочее</b>
-<blockquote>Наказание: Бан, ЧСБ, ЧСА</blockquote>
-
-<b>Правила Были Составлены Администрацией и Разработчиком Проекта MEOW GAME</b>
-
-<b>С любовью Ваш Meow Game ✅</b>
+<b>С любовью, ваша администрация MEOW GAME ❤️</b>
 """
     
     # Создаем инлайн клавиатуру с кнопкой
@@ -2401,6 +2772,97 @@ def rules_command(message):
     keyboard.add(types.InlineKeyboardButton("🗨️ Наш чат", url="https://t.me/meowchatgame"))
     
     bot.send_message(message.chat.id, rules_text, parse_mode="HTML", reply_markup=keyboard, disable_web_page_preview=True)
+
+# ================== КОМАНДА ДЛЯ УДАЛЕНИЯ СООБЩЕНИЙ (ТОЛЬКО ДЛЯ АДМИНОВ) ==================
+@bot.message_handler(func=lambda m: m.text and m.text.lower() == "-смс")
+def delete_message_cmd(message):
+    """Удаляет сообщение, на которое ответили (только для администраторов)"""
+    try:
+        chat_id = message.chat.id
+        user_id = message.from_user.id
+        
+        # Проверяем права администратора в боте
+        is_bot_admin = user_id in ADMIN_IDS
+        
+        # Проверяем права администратора в чате (для групповых чатов)
+        is_chat_admin = False
+        if message.chat.type in ["group", "supergroup"]:
+            try:
+                member = bot.get_chat_member(chat_id, user_id)
+                is_chat_admin = member.status in ["administrator", "creator"]
+            except:
+                pass
+        
+        # Если не администратор ни в боте, ни в чате - игнорируем
+        if not (is_bot_admin or is_chat_admin):
+            # Отправляем сообщение и удаляем его через 5 секунд
+            warning = bot.send_message(chat_id, 
+                                     "❌ Эта команда доступна только администраторам!", 
+                                     parse_mode="HTML")
+            time.sleep(5)
+            try:
+                bot.delete_message(chat_id, warning.message_id)
+                bot.delete_message(chat_id, message.message_id)
+            except:
+                pass
+            return
+        
+        # Проверяем, что команда отправлена в ответ на сообщение
+        if not message.reply_to_message:
+            # Отправляем подсказку и удаляем через 5 секунд
+            hint = bot.send_message(chat_id, 
+                                   "❌ Ответьте на сообщение, которое нужно удалить!\n\n"
+                                   "<b>Использование:</b> Ответьте на сообщение и напишите <code>-смс</code>", 
+                                   parse_mode="HTML")
+            time.sleep(5)
+            try:
+                bot.delete_message(chat_id, hint.message_id)
+                bot.delete_message(chat_id, message.message_id)
+            except:
+                pass
+            return
+        
+        # Удаляем целевое сообщение
+        try:
+            bot.delete_message(chat_id, message.reply_to_message.message_id)
+        except Exception as e:
+            error_msg = bot.send_message(chat_id, 
+                                       f"❌ Не удалось удалить сообщение!", 
+                                       parse_mode="HTML")
+            time.sleep(5)
+            try:
+                bot.delete_message(chat_id, error_msg.message_id)
+                bot.delete_message(chat_id, message.message_id)
+            except:
+                pass
+            return
+        
+        # Удаляем команду
+        try:
+            bot.delete_message(chat_id, message.message_id)
+        except:
+            pass
+        
+        # Отправляем подтверждение (автоматически удалится через 2 секунды)
+        confirm_msg = bot.send_message(chat_id, 
+                                      "✅ Сообщение удалено!", 
+                                      parse_mode="HTML")
+        
+        # Автоматически удаляем подтверждение через 2 секунды
+        time.sleep(1)
+        try:
+            bot.delete_message(chat_id, confirm_msg.message_id)
+        except:
+            pass
+        
+    except Exception as e:
+        logger.error(f"Ошибка в команде -смс: {e}")
+        try:
+            bot.send_message(chat_id, 
+                           "❌ Произошла ошибка!", 
+                           parse_mode="HTML")
+        except:
+            pass
         
      # ================== ОБНОВЛЁННАЯ ПАНЕЛЬ РАССЫЛКИ С АВТОМАТИЧЕСКИМ СОХРАНЕНИЕМ ЧАТОВ ==================
 
@@ -7853,7 +8315,7 @@ def show_help_page(call, page_num):
         
     elif page_num == 3:
         # Страница 3: следующие 3 кнопки
-        kb.add(InlineKeyboardButton("Снежки", callback_data="help_snow"))
+        kb.add(InlineKeyboardButton("Ивенты", callback_data="help_snow"))
         kb.add(InlineKeyboardButton("Донат", callback_data="help_donate"))
         kb.add(InlineKeyboardButton("Поддержка", callback_data="help_support"))
         # Назад и вперед
@@ -7903,7 +8365,7 @@ COMMANDS_PAGES = [
 <code>п [ID] [сумма]</code> — перевод
 <code>промо [код]</code> — промокод
 <code>задонатить [сумма]</code> — пополнить
-<code>реф</code> — реферальная система
+<code>мой кабинет</code> — реферальная система
 
 <b>ВЗАИМОДЕЙСТВИЯ:</b>
 <code>рп</code> — список RP-команд
@@ -8089,19 +8551,38 @@ def callback_help_sections(call):
             
         elif section == "snow":
             text = (
-                "<b>СНЕЖКИ</b>\n━━━━━━━━━━━━━━━━━━━\n\n"
-                
-                "<b>КОМАНДЫ:</b>\n"
-                "<code>снежок</code> — слепить снежок\n"
-                "<code>мой профиль</code> — статистика\n"
-                "<code>Узнать свое место в топе</code> — по команде: профиль, мой профиль\n\n"
-                
-                "<b>КУРС:</b>\n"
-                "• 1 снежок = 50$\n"
-                "• 1 золотой = 250$\n"
-                "• 5% шанс на золотой\n"
-                "━━━━━━━━━━━━━━━━━━━"
-            )
+    "<b>🎮 ИГРЫ И ИВЕНТЫ</b>\n━━━━━━━━━━━━━━━━━━━\n\n"
+    
+    "<b>❄️ СНЕЖКИ (новогодний ивент):</b>\n"
+    "<code>снежок</code> — слепить снежок\n"
+    "<code>мой профиль</code> — статистика снежков\n"
+    "<code>ежедневный</code> — ежедневная награда\n"
+    "<code>топ снежков</code> — топ игроков\n"
+    "<code>снежный топ</code> — альтернативная команда\n\n"
+    
+    "<b>🗑️ СБОР МУСОРА (новый ивент):</b>\n"
+    "<code>начать сборку мусора</code> — начать сбор\n"
+    "<code>сборка мусора</code> — альтернативная команда\n"
+    "<code>мой инвентарь</code> — показать найденное\n"
+    "<code>мой инв</code> — краткая команда\n\n"
+    
+    "<b>📊 КУРС ОБМЕНА:</b>\n"
+    "• ❄️ 1 снежок = 50$\n"
+    "• 🌟 1 золотой снежок = 250$\n"
+    "• 🎯 5% шанс на золотой снежок\n\n"
+    
+    "<b>💰 СТОИМОСТЬ МУСОРА:</b>\n"
+    "• 🍂 Листья — 15$\n"
+    "• 🥤 Бутылка — 50$\n"
+    "• 📰 Бумага — 20$\n"
+    "• 📱 Телефон — 400$\n"
+    "• 💍 Кольцо — 3000$\n"
+    "• и другие предметы...\n\n"
+    
+    "<i>💫 Каждые 2 секунды можно собирать мусор!\n"
+    "🎁 70% шанс найти что-то ценное!</i>\n"
+    "━━━━━━━━━━━━━━━━━━━"
+)
             
         elif section == "support":
             text = (
@@ -14161,210 +14642,6 @@ def send_logs(message):
         bot.reply_to(message, "❌ Ошибка отправки логов!")
         logger.error(f"Ошибка отправки логов: {e}")
         
-# ================== АНТИ-МАТ СИСТЕМА (ДЛЯ ВСЕХ ЧАТОВ) ==================
-MUTE_TIME_SECONDS = 3 * 60
-
-# Храним состояние для каждого чата отдельно
-anti_filter_status = {}
-
-def get_chat_status(chat_id):
-    """Получает статус анти-фильтра для чата"""
-    return anti_filter_status.get(chat_id, True)  # По умолчанию включен
-
-def set_chat_status(chat_id, status):
-    """Устанавливает статус анти-фильтра для чата"""
-    anti_filter_status[chat_id] = status
-
-BAD_WORDS = [
-    "блять",
-    "бля",
-    "сука",
-    "шлюха",
-    "ебал",
-    "ёбал",
-    "маму ебал",
-    "хуй",
-    "пизда",
-    "нахуй",
-]
-
-@bot.message_handler(commands=["anti"])
-def anti_filter_toggle_cmd(message):
-    """Команда для управления анти-фильтром - только для админов чата"""
-    # Работает в ЛЮБОМ чате, но только для админов чата
-    
-    # Проверяем, является ли пользователь администратором чата
-    try:
-        member = bot.get_chat_member(message.chat.id, message.from_user.id)
-        if member.status not in ("administrator", "creator"):
-            bot.reply_to(message, "❌ <b>Только администраторы чата могут управлять анти-фильтром!</b>", parse_mode="HTML")
-            return
-    except Exception as e:
-        bot.reply_to(message, f"❌ <b>Ошибка проверки прав:</b> {e}", parse_mode="HTML")
-        return
-
-    # Проверяем, является ли бот администратором чата
-    try:
-        bot_member = bot.get_chat_member(message.chat.id, bot.get_me().id)
-        if bot_member.status not in ("administrator", "creator"):
-            bot.reply_to(message, 
-                "❌ <b>Бот не является администратором!</b>\n\n"
-                "Для работы анти-фильтра нужно:\n"
-                "1. Сделать бота администратором\n"
-                "2. Дать права на удаление сообщений\n"
-                "3. Дать права на ограничение участников", 
-                parse_mode="HTML")
-            return
-    except Exception as e:
-        bot.reply_to(message, f"❌ <b>Ошибка проверки прав бота:</b> {e}", parse_mode="HTML")
-        return
-
-    # Получаем текущий статус для этого чата
-    current_status = get_chat_status(message.chat.id)
-    status_text = "вкл ✅" if current_status else "выкл 🔴"
-    next_status_text = "выключить" if current_status else "включить"
-
-    kb = InlineKeyboardMarkup()
-    kb.add(InlineKeyboardButton(f"🔄 {next_status_text.capitalize()} анти-фильтр", callback_data=f"toggle_anti_filter_{message.chat.id}"))
-
-    bot.reply_to(message, 
-        f"⚙️ <b>Управление анти-фильтром чата</b>\n\n"
-        f"📊 <b>Текущий статус:</b> {status_text}\n"
-        f"💬 <b>Чат:</b> {message.chat.title or 'ЛС'}\n"
-        f"👮 <b>Администратор:</b> {message.from_user.first_name}\n\n"
-        f"Нажми на кнопку ниже, чтобы {next_status_text} анти-фильтр в этом чате:", 
-        parse_mode="HTML", 
-        reply_markup=kb
-    )
-
-@bot.callback_query_handler(func=lambda c: c.data.startswith("toggle_anti_filter_"))
-def toggle_anti_filter(call):
-    """Обработка нажатия кнопки включения/выключения анти-фильтра"""
-    # Извлекаем ID чата из callback_data
-    try:
-        chat_id = int(call.data.split("_")[3])
-    except:
-        bot.answer_callback_query(call.id, "❌ Ошибка данных!", show_alert=True)
-        return
-
-    # Проверяем, является ли пользователь администратором чата
-    try:
-        member = bot.get_chat_member(chat_id, call.from_user.id)
-        if member.status not in ("administrator", "creator"):
-            bot.answer_callback_query(call.id, "❌ Только администраторы чата могут управлять анти-фильтром!", show_alert=True)
-            return
-    except Exception as e:
-        bot.answer_callback_query(call.id, f"❌ Ошибка проверки прав: {e}", show_alert=True)
-        return
-
-    # Переключаем статус для этого чата
-    current_status = get_chat_status(chat_id)
-    new_status = not current_status
-    set_chat_status(chat_id, new_status)
-
-    status_text = "вкл ✅" if new_status else "выкл 🔴"
-    action_text = "включен" if new_status else "выключен"
-    
-    try:
-        # Получаем название чата для сообщения
-        chat = bot.get_chat(chat_id)
-        chat_name = chat.title or f"чат {chat_id}"
-    except:
-        chat_name = f"чат {chat_id}"
-
-    # Обновляем сообщение
-    kb = InlineKeyboardMarkup()
-    next_status_text = "выключить" if new_status else "включить"
-    kb.add(InlineKeyboardButton(f"🔄 {next_status_text.capitalize()} анти-фильтр", callback_data=f"toggle_anti_filter_{chat_id}"))
-
-    bot.edit_message_text(
-        f"⚙️ <b>Управление анти-фильтром чата</b>\n\n"
-        f"📊 <b>Текущий статус:</b> {status_text}\n"
-        f"💬 <b>Чат:</b> {chat_name}\n"
-        f"👮 <b>Администратор:</b> {call.from_user.first_name}\n\n"
-        f"✅ <b>Анти-фильтр {action_text}!</b>\n\n"
-        f"Нажми на кнопку ниже, чтобы {next_status_text} анти-фильтр в этом чате:",
-        call.message.chat.id,
-        call.message.message_id,
-        parse_mode="HTML",
-        reply_markup=kb
-    )
-
-    bot.answer_callback_query(call.id, f"✅ Анти-фильтр {action_text} в чате {chat_name}!")
-
-# ================== ОБРАБОТКА МАТА (ПОСЛЕДНИЙ ХЕНДЛЕР!) ==================
-# ВАЖНО: Этот хендлер должен быть ПОСЛЕДНИМ в файле
-# Он будет срабатывать только если другие хендлеры не перехватили сообщение
-
-@bot.message_handler(func=lambda m: m.text and m.chat.type in ["group", "supergroup"])
-def anti_mat_handler(message):
-    """
-    ХЕНДЛЕР ДОЛЖЕН БЫТЬ ПОСЛЕДНИМ В ФАЙЛЕ!
-    Обрабатывает только мат, не мешает другим командам
-    """
-    
-    # Проверяем, включен ли анти-фильтр в этом чате
-    if not get_chat_status(message.chat.id):
-        return
-    
-    # Пропускаем админов чата
-    try:
-        member = bot.get_chat_member(message.chat.id, message.from_user.id)
-        if member.status in ("administrator", "creator"):
-            return
-    except:
-        return
-    
-    # Проверяем текст на мат
-    text = message.text.lower()
-    found_bad_word = False
-    
-    for bad_word in BAD_WORDS:
-        if bad_word in text:
-            found_bad_word = True
-            break
-    
-    if not found_bad_word:
-        return
-    
-    # Проверяем права бота
-    try:
-        bot_member = bot.get_chat_member(message.chat.id, bot.get_me().id)
-        if bot_member.status not in ("administrator", "creator"):
-            return
-    except:
-        return
-    
-    # Удаляем сообщение с матом
-    try:
-        bot.delete_message(message.chat.id, message.message_id)
-    except:
-        pass
-    
-    user = message.from_user
-    mention = f'<a href="tg://user?id={user.id}">{user.first_name}</a>'
-    until_time = int(time.time()) + MUTE_TIME_SECONDS
-    
-    try:
-        bot.restrict_chat_member(
-            chat_id=message.chat.id,
-            user_id=user.id,
-            until_date=until_time,
-            can_send_messages=False
-        )
-        
-        bot.send_message(
-            message.chat.id,
-            f"❗ {mention}, нарушение правил чата.\n"
-            f"🛑 <b>Причина:</b> Использование запрещенных слов\n"
-            f"🔇 <b>Мут:</b> 3 минуты\n\n"
-            f"<code>Если хотите выключить Анти-фильтр, попросите админов чата написать /anti</code>",
-            parse_mode="HTML"
-        )
-    except Exception as e:
-        logger.error(f"Ошибка при муте: {e}")
-
-print("✅ Анти-мат система загружена!")        
 
 # ================== ЗАПУСК БОТА ==================
 if __name__ == "__main__":
