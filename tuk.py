@@ -2166,7 +2166,7 @@ print("✅ Новогодний календарь загружен и гото�
 
 # ================== СИСТЕМА СБОРА МУСОРА С АВТО-СБОРОКОЙ ==================
 TRASH_DB = "trash.db"
-AUTO_TRASH_PRICE = 240000  # 240к за авто-сбор
+AUTO_TRASH_PRICE = 390000  # 240к за авто-сбор
 AUTO_TRASH_TIME = 40 * 60  # 40 минут
 AUTO_TRASH_USERS = {}
 
@@ -2435,7 +2435,7 @@ def collect_trash_callback(call):
             text = f"{mention}, 🚗 <b>Авто-сборка активна! Осталось: {minutes_left} минут {seconds_left} секунд</b>"
         else:
             kb.add(InlineKeyboardButton("🗑️ Собрать мусор", callback_data=f"collect_trash_{user_id}"))
-            kb.add(InlineKeyboardButton("🚗 Купить авто-сборку (240.000$)", callback_data=f"buy_autotrash_{user_id}"))
+            kb.add(InlineKeyboardButton("🚗 Купить авто-сборку (390.000$)", callback_data=f"buy_autotrash_{user_id}"))
             
             if found_item:
                 add_item_to_inventory(user_id, found_item)
@@ -2480,8 +2480,8 @@ def buy_autotrash(call):
         
         kb = InlineKeyboardMarkup(row_width=2)
         kb.add(
-            InlineKeyboardButton("✅ Купить за 240.000$", callback_data=f"confirm_autotrash_{user_id}"),
-            InlineKeyboardButton("❌ Отмена", callback_data=f"cancel_autotrash_{user_id}")
+            InlineKeyboardButton("✅", callback_data=f"confirm_autotrash_{user_id}"),
+            InlineKeyboardButton("❌", callback_data=f"cancel_autotrash_{user_id}")
         )
         
         bot.edit_message_text(
@@ -2566,7 +2566,7 @@ def cancel_autotrash(call):
             text = f"{mention}, 🚗 <b>Авто-сборка активна! Осталось: {minutes_left} минут {seconds_left} секунд</b>"
         else:
             kb.add(InlineKeyboardButton("🗑️ Собрать мусор", callback_data=f"collect_trash_{user_id}"))
-            kb.add(InlineKeyboardButton("🚗 Купить авто-сборку (240.000$)", callback_data=f"buy_autotrash_{user_id}"))
+            kb.add(InlineKeyboardButton("🚗 Купить авто-сборку (390.000$)", callback_data=f"buy_autotrash_{user_id}"))
             text = f"{mention}, сборка мусора\n\nНажми кнопку ниже чтобы собрать мусор"
         
         bot.edit_message_text(
@@ -2626,7 +2626,7 @@ def show_trash_inventory(message):
     
     # Показываем кнопку покупки авто-сборки только если она не активна
     if not is_auto_trash_active(user_id):
-        kb.add(InlineKeyboardButton("🚗 Купить авто-сборку (240.000$)", callback_data=f"buy_autotrash_{user_id}"))
+        kb.add(InlineKeyboardButton("🚗 Купить авто-сборку (390.000$)", callback_data=f"buy_autotrash_{user_id}"))
     
     bot.send_message(message.chat.id, text, parse_mode="HTML", reply_markup=kb)
 
@@ -2748,7 +2748,7 @@ def cancel_sell_all_callback(call):
             
             # Показываем кнопку покупки авто-сборки только если она не активна
             if not is_auto_trash_active(user_id):
-                kb.add(InlineKeyboardButton("🚗 Купить авто-сборку (240.000$)", callback_data=f"buy_autotrash_{user_id}"))
+                kb.add(InlineKeyboardButton("🚗 Купить авто-сборку (390.000$)", callback_data=f"buy_autotrash_{user_id}"))
         else:
             text = f"{mention}, твой мусорный пакет пуст. Начни собирать мусор!"
             kb = InlineKeyboardMarkup()
@@ -2758,7 +2758,7 @@ def cancel_sell_all_callback(call):
                 kb.add(InlineKeyboardButton("🗑️ Собрать мусор", callback_data=f"collect_trash_{user_id}"))
             
             if not is_auto_trash_active(user_id):
-                kb.add(InlineKeyboardButton("🚗 Купить авто-сборку (240.000$)", callback_data=f"buy_autotrash_{user_id}"))
+                kb.add(InlineKeyboardButton("🚗 Купить авто-сборку (390.000$)", callback_data=f"buy_autotrash_{user_id}"))
         
         bot.edit_message_text(
             text,
@@ -2830,12 +2830,12 @@ init_mining_db()
 # Конфигурация кирок
 PICKAXES = {
     1: {"id": 1, "name": "⛏️ Деревянная кирка", "price": 15000, "rarity_bonus": 1.0, "durability": 100},
-    2: {"id": 2, "name": "🔨 Каменная кирка", "price": 30000, "rarity_bonus": 1.2, "durability": 150},
-    3: {"id": 3, "name": "⚒️ Железная кирка", "price": 45000, "rarity_bonus": 1.5, "durability": 200},
-    4: {"id": 4, "name": "⛓️ Стальная кирка", "price": 50000, "rarity_bonus": 1.8, "durability": 250},
-    5: {"id": 5, "name": "💎 Алмазная кирка", "price": 100000, "rarity_bonus": 2.2, "durability": 300},
-    6: {"id": 6, "name": "🔥 Огненная кирка", "price": 200000, "rarity_bonus": 2.7, "durability": 350},
-    7: {"id": 7, "name": "✨ Божественная кирка", "price": 300000, "rarity_bonus": 3.5, "durability": 500}
+    2: {"id": 2, "name": "🔨 Каменная кирка", "price": 40000, "rarity_bonus": 1.2, "durability": 150},
+    3: {"id": 3, "name": "⚒️ Железная кирка", "price": 65000, "rarity_bonus": 1.5, "durability": 200},
+    4: {"id": 4, "name": "⛓️ Стальная кирка", "price": 90000, "rarity_bonus": 1.8, "durability": 250},
+    5: {"id": 5, "name": "💎 Алмазная кирка", "price": 150000, "rarity_bonus": 2.2, "durability": 300},
+    6: {"id": 6, "name": "🔥 Огненная кирка", "price": 300000, "rarity_bonus": 2.7, "durability": 350},
+    7: {"id": 7, "name": "✨ Божественная кирка", "price": 600000, "rarity_bonus": 3.5, "durability": 500}
 }
 
 # Конфигурация руд (30 видов)
@@ -2856,19 +2856,19 @@ ORES = {
     "🔷 Серебро": {"price": 4000, "rarity": 4},
     "🟡 Золото": {"price": 5000, "rarity": 3.5},
     "🔶 Платина": {"price": 6500, "rarity": 3},
-    "💎 Изумруд": {"price": 8500, "rarity": 2.5},
+    "💎 Изумруд": {"price": 8500, "rarity": 2.0},
     "🔵 Сапфир": {"price": 11000, "rarity": 2},
-    "🔴 Рубин": {"price": 14000, "rarity": 1.8},
-    "💎 Алмаз": {"price": 18000, "rarity": 1.5},
-    "✨ Кристалл": {"price": 23000, "rarity": 1.2},
-    "🌟 Звездная пыль": {"price": 29000, "rarity": 1},
-    "🌕 Лунный камень": {"price": 36000, "rarity": 0.8},
-    "☀️ Солнечный камень": {"price": 45000, "rarity": 0.6},
-    "⚡ Громовой камень": {"price": 55000, "rarity": 0.5},
-    "❄️ Ледяной кристалл": {"price": 68000, "rarity": 0.4},
-    "🔥 Огненный кристалл": {"price": 82000, "rarity": 0.3},
-    "💫 Космическая руда": {"price": 100000, "rarity": 0.25},
-    "🌈 Радужная руда": {"price": 120000, "rarity": 0.2},
+    "🔴 Рубин": {"price": 14000, "rarity": 1.1},
+    "💎 Алмаз": {"price": 18000, "rarity": 1.0},
+    "✨ Кристалл": {"price": 23000, "rarity": 0.7},
+    "🌟 Звездная пыль": {"price": 29000, "rarity": 0.7},
+    "🌕 Лунный камень": {"price": 36000, "rarity": 0.6},
+    "☀️ Солнечный камень": {"price": 45000, "rarity": 0.3},
+    "⚡ Громовой камень": {"price": 55000, "rarity": 0.3},
+    "❄️ Ледяной кристалл": {"price": 68000, "rarity": 0.2},
+    "🔥 Огненный кристалл": {"price": 82000, "rarity": 0.2},
+    "💫 Космическая руда": {"price": 100000, "rarity": 0.19},
+    "🌈 Радужная руда": {"price": 120000, "rarity": 0.12},
     "👑 Королевская руда": {"price": 150000, "rarity": 0.1}
 }
 
@@ -3091,10 +3091,10 @@ def my_mine(message):
     
     kb = InlineKeyboardMarkup(row_width=2)
     kb.add(
-        InlineKeyboardButton("⛏️ Магазин кирок", callback_data=f"mine_pickaxe_shop_{user_id}"),
-        InlineKeyboardButton("🎒 Инвентарь", callback_data=f"mine_inventory_{user_id}")
+        InlineKeyboardButton("⛏️", callback_data=f"mine_pickaxe_shop_{user_id}"),
+        InlineKeyboardButton("🎒", callback_data=f"mine_inventory_{user_id}")
     )
-    kb.add(InlineKeyboardButton("👤 Мой профиль", callback_data=f"mine_profile_{user_id}"))
+    kb.add(InlineKeyboardButton("👤", callback_data=f"mine_profile_{user_id}"))
     
     bot.send_message(message.chat.id, text, parse_mode="HTML", reply_markup=kb)
 
@@ -3164,8 +3164,8 @@ def buy_pickaxe(call):
         
         kb = InlineKeyboardMarkup(row_width=2)
         kb.add(
-            InlineKeyboardButton("✅ Да", callback_data=f"mine_confirm_buy_{user_id}_{pickaxe_id}"),
-            InlineKeyboardButton("❌ Нет", callback_data=f"mine_pickaxe_shop_{user_id}")
+            InlineKeyboardButton("✅", callback_data=f"mine_confirm_buy_{user_id}_{pickaxe_id}"),
+            InlineKeyboardButton("❌", callback_data=f"mine_pickaxe_shop_{user_id}")
         )
         
         bot.edit_message_text(
@@ -3299,11 +3299,18 @@ def my_ores(call):
             
             text += f"\n💰 Общая стоимость: {format_number(total_value)}$"
         
-        kb = InlineKeyboardMarkup(row_width=2)
-        
+        kb = InlineKeyboardMarkup(row_width=1)
+
         if ores:
             kb.add(InlineKeyboardButton("💰 Продать все руды", callback_data=f"mine_sell_all_{user_id}"))
-        
+            for ore_name, quantity in ores.items():
+                kb.add(
+                    InlineKeyboardButton(
+                        f"💸 Продать {ore_name} ×{quantity}",
+                        callback_data=f"mine_sell_ore_{ore_name}_{user_id}"
+                    )
+                )
+
         kb.add(
             InlineKeyboardButton("⬅️ Назад", callback_data=f"mine_inventory_{user_id}"),
             InlineKeyboardButton("⛏️ В шахту", callback_data=f"mine_back_{user_id}")
@@ -3322,30 +3329,38 @@ def my_ores(call):
         logger.error(f"Ошибка показа руд: {e}")
         bot.answer_callback_query(call.id, "❌ Ошибка!", show_alert=True)
 
-# ================== ПРОДАЖА ВСЕХ РУД ==================
-@bot.callback_query_handler(func=lambda c: c.data.startswith("mine_sell_all_"))
-def sell_all_ores(call):
+
+@bot.callback_query_handler(func=lambda c: c.data.startswith("mine_sell_ore_"))
+def sell_single_ore(call):
     try:
-        user_id = int(call.data.split("_")[3])
+        _, _, ore_name, user_id = call.data.split("_")
+        user_id = int(user_id)
+
         if not check_button_owner(call, user_id):
             return
-        
-        total_value = calculate_ores_value(user_id)
-        
-        if total_value == 0:
-            bot.answer_callback_query(call.id, "❌ Нет руд для продажи!", show_alert=True)
+
+        ores = get_user_ores(user_id)
+        if ore_name not in ores:
+            bot.answer_callback_query(call.id, "❌ У тебя нет этой руды!", show_alert=True)
             return
-        
+
+        quantity = ores[ore_name]
+        price = ORES[ore_name]["price"]
+        total = price * quantity
+
         mention = f'<a href="tg://user?id={user_id}">{call.from_user.first_name}</a>'
-        
-        text = f"{mention}, вы точно хотите продать все руды за <code>{format_number(total_value)}$</code>?"
-        
+        text = (
+            f"{mention}, ты точно хочешь продать\n"
+            f"<b>{ore_name} ×{quantity}</b>\n"
+            f"за <code>{format_number(total)}$</code>?"
+        )
+
         kb = InlineKeyboardMarkup(row_width=2)
         kb.add(
-            InlineKeyboardButton("✅ Да", callback_data=f"mine_confirm_sell_{user_id}"),
+            InlineKeyboardButton("✅ Да", callback_data=f"mine_confirm_sell_ore_{ore_name}_{user_id}"),
             InlineKeyboardButton("❌ Нет", callback_data=f"mine_my_ores_{user_id}")
         )
-        
+
         bot.edit_message_text(
             text,
             call.message.chat.id,
@@ -3354,39 +3369,42 @@ def sell_all_ores(call):
             reply_markup=kb
         )
         bot.answer_callback_query(call.id)
-        
+
     except Exception as e:
-        logger.error(f"Ошибка продажи руд: {e}")
+        logger.error(f"Ошибка продажи руды: {e}")
         bot.answer_callback_query(call.id, "❌ Ошибка!", show_alert=True)
 
-@bot.callback_query_handler(func=lambda c: c.data.startswith("mine_confirm_sell_"))
-def confirm_sell_all(call):
+
+@bot.callback_query_handler(func=lambda c: c.data.startswith("mine_confirm_sell_ore_"))
+def confirm_sell_single_ore(call):
     try:
-        user_id = int(call.data.split("_")[3])
+        _, _, _, ore_name, user_id = call.data.split("_")
+        user_id = int(user_id)
+
         if not check_button_owner(call, user_id):
             return
-        
-        total_value = calculate_ores_value(user_id)
-        
-        if total_value == 0:
-            bot.answer_callback_query(call.id, "❌ Нет руд для продажи!", show_alert=True)
+
+        ores = get_user_ores(user_id)
+        if ore_name not in ores:
+            bot.answer_callback_query(call.id, "❌ Руда не найдена!", show_alert=True)
             return
-        
-        # Начисляем деньги
+
+        quantity = ores[ore_name]
+        price = ORES[ore_name]["price"]
+        total = price * quantity
+
         user_data = get_user_data(user_id)
-        user_data["balance"] += total_value
+        user_data["balance"] += total
+
+        del ores[ore_name]
         save_casino_data()
-        
-        # Очищаем руды
-        clear_user_ores(user_id)
-        
+
         mention = f'<a href="tg://user?id={user_id}">{call.from_user.first_name}</a>'
-        
-        text = f"✅ {mention}, все руды проданы за <code>{format_number(total_value)}$</code>!"
-        
+        text = f"✅ {mention}, ты продал <b>{ore_name} ×{quantity}</b> за <code>{format_number(total)}$</code>"
+
         kb = InlineKeyboardMarkup()
-        kb.add(InlineKeyboardButton("⬅️ В инвентарь", callback_data=f"mine_inventory_{user_id}"))
-        
+        kb.add(InlineKeyboardButton("⬅️ К рудам", callback_data=f"mine_my_ores_{user_id}"))
+
         bot.edit_message_text(
             text,
             call.message.chat.id,
@@ -3394,10 +3412,10 @@ def confirm_sell_all(call):
             parse_mode="HTML",
             reply_markup=kb
         )
-        bot.answer_callback_query(call.id, f"✅ +{format_number(total_value)}$")
-        
+        bot.answer_callback_query(call.id, f"+{format_number(total)}$")
+
     except Exception as e:
-        logger.error(f"Ошибка подтверждения продажи: {e}")
+        logger.error(f"Ошибка подтверждения продажи руды: {e}")
         bot.answer_callback_query(call.id, "❌ Ошибка!", show_alert=True)
         
         # ================== ПРОФИЛЬ ШАХТЫ ==================
@@ -9377,9 +9395,10 @@ COMMANDS_PAGES = [
         "title": "📋 <b>КОМАНДЫ - СТРАНИЦА 1/3</b>\n━━━━━━━━━━━━━━━━━",
         "content": """<b>ОСНОВНЫЕ КОМАНДЫ:</b>
 
-<code>/start</code> — главное меню
+<code>моя шахта</code> — главная меню твоей шахты
+<code>копать</code> — копать руду в шахте, альтернативная команда: копать шахту
 <code>/help</code> — помощь
-<code>баланс / б</code> — баланс
+<code>баланс</code> — баланс
 <code>топ</code> — топ игроков
 <code>бонус</code> — ежедневный бонус
 <code>ферма</code> — фарм валюты
