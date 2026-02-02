@@ -3183,7 +3183,10 @@ start_interest_calculation_loop()
 
 # ================== КОМАНДЫ БАНКА ==================
 
-@bot.message_handler(func=lambda m: m.text and m.text.lower() == "открыть счёт")
+@bot.message_handler(func=lambda m: m.text and (
+    m.text.lower() == "открыть счёт" or 
+    m.text.lower() == "открыть счет"
+))
 def open_bank_account(message):
     """Открывает банковский счет"""
     user_id = message.from_user.id
@@ -3336,32 +3339,85 @@ def my_bank_account(message):
 def bank_withdraw_callback(call):
     """Обработка кнопки снятия средств"""
     try:
-        user_id = int(call.data.split("_")[2])
+        # Разбираем callback data
+        parts = call.data.split("_")
         
-        # Проверяем владельца кнопки
-        if call.from_user.id != user_id:
-            bot.answer_callback_query(call.id, "❌ Это не твоя кнопка!", show_alert=True)
-            return
-        
-        mention = f'<a href="tg://user?id={user_id}">{call.from_user.first_name}</a>'
-        
-        text = f"{mention}, ты точно хочешь снять весь баланс?"
-        
-        kb = InlineKeyboardMarkup(row_width=2)
-        kb.add(
-            InlineKeyboardButton("Да", callback_data=f"bank_withdraw_confirm_{user_id}"),
-            InlineKeyboardButton("Нет", callback_data=f"bank_withdraw_cancel_{user_id}")
-        )
-        
-        bot.edit_message_text(
-            text,
-            call.message.chat.id,
-            call.message.message_id,
-            parse_mode="HTML",
-            reply_markup=kb
-        )
-        bot.answer_callback_query(call.id)
-        
+        # Определяем, какая кнопка нажата
+        if len(parts) == 3:
+            # Это основная кнопка "Снять с банка"
+            user_id = int(parts[2])
+            
+            # Проверяем владельца кнопки
+            if call.from_user.id != user_id:
+                bot.answer_callback_query(call.id, "❌ Это не твоя кнопка!", show_alert=True)
+                return
+            
+            mention = f'<a href="tg://user?id={user_id}">{call.from_user.first_name}</a>'
+            
+            text = f"{mention}, ты точно хочешь снять весь баланс?"
+            
+            kb = InlineKeyboardMarkup(row_width=2)
+            kb.add(
+                InlineKeyboardButton("Да", callback_data=f"bank_withdraw_confirm_{user_id}"),
+                InlineKeyboardButton("Нет", callback_data=f"bank_withdraw_cancel_{user_id}")
+            )
+            
+            bot.edit_message_text(
+                text,
+                call.message.chat.id,
+                call.message.message_id,
+                parse_mode="HTML",
+                reply_markup=kb
+            )
+            bot.answer_callback_query(call.id)
+            
+        elif len(parts) == 4:
+            # Это кнопка "Да" или "Нет"
+            action = parts[2]  # confirm или cancel
+            user_id = int(parts[3])
+            
+            # Проверяем владельца кнопки
+            if call.from_user.id != user_id:
+                bot.answer_callback_query(call.id, "❌ Это не твоя кнопка!", show_alert=True)
+                return
+            
+            if action == "confirm":
+                # Подтверждение снятия средств
+                success, amount = withdraw_from_account(user_id)
+                
+                if success:
+                    mention = f'<a href="tg://user?id={user_id}">{call.from_user.first_name}</a>'
+                    user_data = get_user_data(user_id)
+                    
+                    text = (
+                        f"{mention}, средства с банка успешно сняты и отправлены на твой баланс ✅\n\n"
+                        f"💰 Снято: <code>{format_number(amount)}$</code>\n"
+                        f"💵 Текущий баланс: <code>{format_number(user_data['balance'])}$</code>"
+                    )
+                    
+                    bot.edit_message_text(
+                        text,
+                        call.message.chat.id,
+                        call.message.message_id,
+                        parse_mode="HTML"
+                    )
+                    bot.answer_callback_query(call.id, f"✅ Получено: {format_number(amount)}$")
+                else:
+                    bot.answer_callback_query(call.id, f"❌ {amount}", show_alert=True)
+                    
+            elif action == "cancel":
+                # Отмена снятия средств
+                mention = f'<a href="tg://user?id={user_id}">{call.from_user.first_name}</a>'
+                
+                # Возвращаем к информации о счете
+                bot.edit_message_text(
+                    f"❌ {mention}, снятие средств отменено.",
+                    call.message.chat.id,
+                    call.message.message_id,
+                    parse_mode="HTML"
+                )
+                bot.answer_callback_query(call.id, "❌ Снятие отменено")
+                
     except Exception as e:
         logger.error(f"Ошибка снятия средств: {e}")
         bot.answer_callback_query(call.id, "❌ Ошибка!", show_alert=True)
@@ -3430,9 +3486,12 @@ def bank_withdraw_cancel(call):
         logger.error(f"Ошибка отмены снятия: {e}")
         bot.answer_callback_query(call.id, "❌ Ошибка!", show_alert=True)
 
-@bot.message_handler(func=lambda m: m.text and m.text.lower() == "удалить счёт")
+@bot.message_handler(func=lambda m: m.text and (
+    m.text.lower() == "удалить счёт" or 
+    m.text.lower() == "удалить счет"
+))
 def delete_account_command(message):
-    """Удаляет банковский счет"""
+    """Удаляет банковский счет (работает с 'ё' и 'е')"""
     user_id = message.from_user.id
     username = message.from_user.first_name
     mention = f'<a href="tg://user?id={user_id}">{username}</a>'
@@ -3440,30 +3499,34 @@ def delete_account_command(message):
     # Пытаемся удалить счет
     success, result = delete_bank_account(user_id)
     
-    if success:
+    if not success:
+        # Если вернулась строка "pending_confirmation" - это не ошибка
         if result == "pending_confirmation":
             # Нужно подтверждение, т.к. есть деньги на счету
             account = get_bank_account(user_id)
-            
-            text = (
-                f"{mention}, вы точно хотите удалить счёт прямо сейчас?\n\n"
-                f"⚠️ На вашем счёту лежат <code>{format_number(account['balance'])}$</code>\n"
-                f"📈 Накопленные проценты: <code>{format_number(round(account['interest_earned'], 2))}$</code>\n\n"
-                f"❗ После удаления деньги не вернутся и вам их администратор не вернет!"
-            )
-            
-            kb = InlineKeyboardMarkup(row_width=2)
-            kb.add(
-                InlineKeyboardButton("Да, удалить", callback_data=f"bank_delete_confirm_{user_id}"),
-                InlineKeyboardButton("Нет, отменить", callback_data=f"bank_delete_cancel_{user_id}")
-            )
-            
-            bot.reply_to(message, text, parse_mode="HTML", reply_markup=kb)
+            if account:
+                text = (
+                    f"{mention}, вы точно хотите удалить счёт прямо сейчас?\n\n"
+                    f"⚠️ На вашем счёту лежат <code>{format_number(account['balance'])}$</code>\n"
+                    f"📈 Накопленные проценты: <code>{format_number(round(account['interest_earned'], 2))}$</code>\n\n"
+                    f"❗ После удаления деньги не вернутся и вам их администратор не вернет!"
+                )
+                
+                kb = InlineKeyboardMarkup(row_width=2)
+                kb.add(
+                    InlineKeyboardButton("Да, удалить", callback_data=f"bank_delete_confirm_{user_id}"),
+                    InlineKeyboardButton("Нет, отменить", callback_data=f"bank_delete_cancel_{user_id}")
+                )
+                
+                bot.reply_to(message, text, parse_mode="HTML", reply_markup=kb)
+            else:
+                bot.reply_to(message, "❌ Ошибка: счет не найден!")
         else:
-            # Счет успешно удален
-            bot.reply_to(message, "✅ Счёт успешно удалён.")
+            # Это обычная ошибка (например, "У тебя нет счета")
+            bot.reply_to(message, result)
     else:
-        bot.reply_to(message, result)
+        # Счет успешно удален (когда денег не было)
+        bot.reply_to(message, "✅ Счёт успешно удалён.")
 
 @bot.callback_query_handler(func=lambda c: c.data.startswith("bank_delete_confirm_"))
 def bank_delete_confirm(call):
@@ -3476,11 +3539,18 @@ def bank_delete_confirm(call):
             bot.answer_callback_query(call.id, "❌ Это не твоя кнопка!", show_alert=True)
             return
         
-        # Получаем информацию о счете для снятия средств
+        # Получаем информацию о счете
         account = get_bank_account(user_id)
-        if account and account["balance"] > 0:
-            # Автоматически снимаем средства перед удалением
-            withdraw_from_account(user_id)
+        if not account:
+            bot.answer_callback_query(call.id, "❌ Счет не найден!", show_alert=True)
+            return
+        
+        # Если есть деньги на счету, снимаем их
+        if account["balance"] > 0:
+            success, amount = withdraw_from_account(user_id)
+            if not success:
+                bot.answer_callback_query(call.id, f"❌ Ошибка при снятии средств: {amount}", show_alert=True)
+                return
         
         # Удаляем счет
         conn = sqlite3.connect(BANK_DB)
@@ -3497,12 +3567,6 @@ def bank_delete_confirm(call):
             parse_mode="HTML"
         )
         
-        # Удаляем исходное сообщение с командой
-        try:
-            bot.delete_message(call.message.chat.id, call.message.message_id - 1)
-        except:
-            pass
-            
         bot.answer_callback_query(call.id, "✅ Счет удален")
         
     except Exception as e:
@@ -3520,15 +3584,9 @@ def bank_delete_cancel(call):
             bot.answer_callback_query(call.id, "❌ Это не твоя кнопка!", show_alert=True)
             return
         
-        # Удаляем сообщение с кнопками
+        # Просто удаляем сообщение с кнопками
         try:
             bot.delete_message(call.message.chat.id, call.message.message_id)
-        except:
-            pass
-            
-        # Удаляем исходное сообщение с командой
-        try:
-            bot.delete_message(call.message.chat.id, call.message.message_id - 1)
         except:
             pass
             
@@ -8190,31 +8248,31 @@ HOUSE_DATA = {
         "price": 2000000,  # 2 млн
         "profit_per_hour": 500,  # 500$/час
         "upkeep_cost": 10000,  # 10к/день
-        "image": "https://avatars.mds.yandex.net/i?id=b6d6bc817374e4b3a0313d7220f3c09b-5888275-images-thumbs&n=13"
+        "image": "https://png.pngtree.com/background/20230516/original/pngtree-ancient-thatched-huts-in-a-forest-picture-image_2611775.jpg"
     },
     "Коттедж": {
         "price": 5000000,  # 5 млн
         "profit_per_hour": 1200,  # 1.2к/час
         "upkeep_cost": 25000,  # 25к/день
-        "image": "https://avatars.mds.yandex.net/i?id=f72e7ce6dd7f380d733a9d9d8215df4e-5878248-images-thumbs&n=13"
+        "image": "https://pic.rutubelist.ru/video/2024-12-12/fb/9e/fb9e3caca7807585073e47c12be4c0c6.jpg"
     },
     "Вилла": {
         "price": 10000000,  # 10 млн
         "profit_per_hour": 2500,  # 2.5к/час
         "upkeep_cost": 50000,  # 50к/день
-        "image": "https://avatars.mds.yandex.net/i?id=4b053954e05b3df2a5b9e6569f6c0115-4611394-images-thumbs&n=13"
+        "image": "https://img.freepik.com/premium-photo/contemporary-villa-with-pool-garden-sleek-design_1270611-8380.jpg?semt=ais_hybrid"
     },
     "Особняк": {
         "price": 25000000,  # 25 млн
         "profit_per_hour": 6000,  # 6к/час
         "upkeep_cost": 120000,  # 120к/день
-        "image": "https://avatars.mds.yandex.net/i?id=340099d59d84135772c92826371b99e2-5396599-images-thumbs&n=13"
+        "image": "https://i.pinimg.com/736x/46/f9/a4/46f9a4c8705a5763d59912e2d82b337c.jpg"
     },
     "Дворец": {
         "price": 50000000,  # 50 млн
         "profit_per_hour": 12000,  # 12к/час
         "upkeep_cost": 250000,  # 250к/день
-        "image": "https://avatars.mds.yandex.net/i?id=a9a0aa44d883dda0b19d08c7d46a8472-5348419-images-thumbs&n=13"
+        "image": "https://img.goodfon.com/wallpaper/nbig/b/c1/enchanted-castle-ancient-gloomy-fairytale-zamok-skazochnyi-2.webp"
     }
 }
 
@@ -15310,10 +15368,10 @@ def my_house(message):
         # Создаем клавиатуру с кнопками
         markup = InlineKeyboardMarkup()
         markup.row(
-            InlineKeyboardButton("💰 Собрать аренду", callback_data=f"house_collect_{user_id}"),
-            InlineKeyboardButton("🏠 Оплатить содержание", callback_data=f"house_upkeep_{user_id}")
+            InlineKeyboardButton("Собрать аренду", callback_data=f"house_collect_{user_id}"),
+            InlineKeyboardButton("Оплатить", callback_data=f"house_upkeep_{user_id}")
         )
-        markup.row(InlineKeyboardButton("🏪 В магазин", callback_data=f"house_shop_{user_id}"))
+        markup.row(InlineKeyboardButton("В магазин", callback_data=f"house_shop_{user_id}"))
         
         # Отправляем фото дома и текст в подписи
         try:
