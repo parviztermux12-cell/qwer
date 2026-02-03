@@ -9038,11 +9038,11 @@ def format_hand(hand, hide_second=False):
 def bj_action_keyboard(user_id, game_id):
     kb = InlineKeyboardMarkup(row_width=2)
     kb.add(
-        InlineKeyboardButton("🎴 Взять карту", callback_data=f"bj_hit_{user_id}_{game_id}"),
-        InlineKeyboardButton("✋ Оставить", callback_data=f"bj_stand_{user_id}_{game_id}")
+        InlineKeyboardButton("Взять", callback_data=f"bj_hit_{user_id}_{game_id}"),
+        InlineKeyboardButton("Оставить", callback_data=f"bj_stand_{user_id}_{game_id}")
     )
     kb.add(
-        InlineKeyboardButton("🏳️ Сдаться", callback_data=f"bj_surrender_{user_id}_{game_id}")
+        InlineKeyboardButton("Сдаться", callback_data=f"bj_surrender_{user_id}_{game_id}")
     )
     return kb
 
@@ -9094,7 +9094,7 @@ def format_blackjack_message(game_id):
         name = str(uid)
 
     text = f"""
-<b>BLACKJACK</b>
+<b>Мини - игра в BlackJack</b>
 {name}
 Ставка: {format_number(game['bet'])}$
 
@@ -9959,7 +9959,7 @@ def show_roulette_logs(message):
 # ================== ФУТБОЛ / БАСКЕТБОЛ / ТИР (50/50) БЕЗ АНИМАЦИИ ==================
 
 def sport_game_simple(message, game_type, bet):
-    """Упрощенная версия игры без анимации"""
+    """Упрощенная версия игры без анимации с честными 50/50"""
     user_id = message.from_user.id
     user_data = get_user_data(user_id)
     mention = f'<a href="tg://user?id={user_id}">{message.from_user.first_name}</a>'
@@ -10003,8 +10003,12 @@ def sport_game_simple(message, game_type, bet):
     user_data["balance"] -= bet
     save_casino_data()
 
-    # Определяем результат
-    win = random.choice([True, False])
+    # ЧЕСТНЫЕ 50/50 - используем random.random() для более точного распределения
+    win_chance = random.random()  # от 0.0 до 1.0
+    win = win_chance < 0.5  # ровно 50% шанс на выигрыш
+    
+    # Для отладки можно добавить логирование
+    logger.info(f"🎮 Игра {game_type}: ставка {bet}, шанс {win_chance:.3f}, результат {'ВЫИГРЫШ' if win else 'ПРОИГРЫШ'}")
     
     # Первое сообщение
     msg1 = bot.reply_to(
@@ -10030,13 +10034,13 @@ def sport_game_simple(message, game_type, bet):
         
         msg3 = bot.reply_to(
             msg2,
-            f"🔴 {mention}, ты попал по цели, выигрыш составил: {format_number(win_amount)}$",
+            f"✅ {mention}, ты попал по цели, выигрыш составил: {format_number(win_amount)}$",
             parse_mode="HTML"
         )
     else:
         msg3 = bot.reply_to(
             msg2,
-            f"🔴 {mention}, ты промахнулся, проигрыш составил: {format_number(bet)}$",
+            f"❌ {mention}, ты промахнулся, проигрыш составил: {format_number(bet)}$",
             parse_mode="HTML"
         )
     
@@ -10058,7 +10062,7 @@ def football_game(message):
     try:
         parts = message.text.split()
         if len(parts) < 2:
-            bot.reply_to(message, "🎮 <b>Футбол</b>\n\nПример: <code>футбол 500</code>\n\n⚽ Ударь по воротам и выигрывай x2!", parse_mode="HTML")
+            bot.reply_to(message, "🎮 <b>Футбол</b>\n\nПример: <code>футбол 500</code>\n\n⚽ Ударь по воротам и выигрывай x2!\n🎯 Шанс выигрыша: 50%", parse_mode="HTML")
             return
 
         bet = int(parts[1])
@@ -10080,7 +10084,7 @@ def basketball_game(message):
     try:
         parts = message.text.split()
         if len(parts) < 2:
-            bot.reply_to(message, "🏀 <b>Баскетбол</b>\n\nПример: <code>баскетбол 500</code>\n\n🏀 Забрось мяч в кольцо и выигрывай x2!", parse_mode="HTML")
+            bot.reply_to(message, "🏀 <b>Баскетбол</b>\n\nПример: <code>баскетбол 500</code>\n\n🏀 Забрось мяч в кольцо и выигрывай x2!\n🎯 Шанс выигрыша: 50%", parse_mode="HTML")
             return
 
         bet = int(parts[1])
@@ -10098,7 +10102,7 @@ def shooting_game(message):
     try:
         parts = message.text.split()
         if len(parts) < 2:
-            bot.reply_to(message, "🎯 <b>Тир</b>\n\nПример: <code>тир 500</code>\n\n🎯 Попади в цель и выигрывай x2!", parse_mode="HTML")
+            bot.reply_to(message, "🎯 <b>Тир</b>\n\nПример: <code>тир 500</code>\n\n🎯 Попади в цель и выигрывай x2!\n🎯 Шанс выигрыша: 50%", parse_mode="HTML")
             return
 
         bet = int(parts[1])
@@ -10111,7 +10115,7 @@ def shooting_game(message):
         bot.reply_to(message, "❌ Произошла ошибка в игре. Попробуйте еще раз.")
 
 
-print("✅ Игры футбол/баскетбол/тир без анимации загружены! ⚽🏀🎯")
+print("✅ Игры футбол/баскетбол/тир с честными 50/50 загружены! ⚽🏀🎯")
 
 # ================== СЛОТЫ (ИСПРАВЛЕННАЯ ВЕРСИЯ) ==================
 
@@ -10214,12 +10218,13 @@ def slot_game(message):
 # ================== РАКЕТКА (CRASH - ИСПРАВЛЕННАЯ ВЕРСИЯ) ==================
 
 rocket_games = {}
-rocket_messages = {}  # Для хранения информации о сообщениях
+rocket_messages = {}
+rocket_lock = threading.Lock()  # Добавляем блокировку для потокобезопасности
 
 def calculate_crash_chance(multiplier):
     """Вероятность краша в зависимости от множителя"""
     if multiplier < 1.1:
-        return 0.5  # 0.5% шанс краша на 1.0-1.1
+        return 0.5
     elif multiplier < 1.5:
         return 1.0
     elif multiplier < 2.0:
@@ -10238,9 +10243,10 @@ def rocket_start(message):
     try:
         user_id = message.from_user.id
         
-        if user_id in rocket_games:
-            bot.reply_to(message, "❌ У тебя уже запущена ракетка!")
-            return
+        with rocket_lock:
+            if user_id in rocket_games:
+                bot.reply_to(message, "❌ У тебя уже запущена ракетка!")
+                return
         
         parts = message.text.split()
         if len(parts) < 2:
@@ -10271,23 +10277,23 @@ def rocket_start(message):
         
         msg = bot.send_message(
             message.chat.id,
-            f"{mention} начал игру в ракетку 🚀\n💹 Коэффициент: 1.00×",
+            f"{mention} начал игру в ракетку 🚀\n💹 Коэффициент: 1.00×\n💰 Ставка: {format_number(bet)}$",
             parse_mode="HTML",
             reply_markup=kb
         )
         
-        rocket_games[user_id] = {
-            "message_id": msg.message_id,
-            "chat_id": message.chat.id,
-            "bet": bet,
-            "multiplier": 1.00,
-            "crashed": False,
-            "start_time": time.time(),
-            "last_update": time.time()
-        }
-        
-        # Сохраняем информацию о сообщении
-        rocket_messages[user_id] = msg.message_id
+        with rocket_lock:
+            rocket_games[user_id] = {
+                "message_id": msg.message_id,
+                "chat_id": message.chat.id,
+                "bet": bet,
+                "multiplier": 1.00,
+                "crashed": False,
+                "start_time": time.time(),
+                "last_update": time.time(),
+                "active": True
+            }
+            rocket_messages[user_id] = msg.message_id
         
         # Запускаем игру в отдельном потоке
         threading.Thread(target=rocket_game_loop, args=(user_id,), daemon=True).start()
@@ -10298,48 +10304,59 @@ def rocket_start(message):
 
 def rocket_game_loop(user_id):
     try:
-        while user_id in rocket_games:
-            game = rocket_games[user_id]
-            
-            if game["crashed"]:
-                break
+        while True:
+            with rocket_lock:
+                if user_id not in rocket_games:
+                    break
+                
+                game = rocket_games[user_id]
+                
+                if not game["active"] or game["crashed"]:
+                    break
             
             # Ждем 0.1 секунды между обновлениями
             time.sleep(0.1)
             
-            # Проверяем шанс краша
-            crash_chance = calculate_crash_chance(game["multiplier"])
-            if random.random() * 100 < crash_chance:
-                game["crashed"] = True
+            with rocket_lock:
+                if user_id not in rocket_games:
+                    break
+                    
+                game = rocket_games[user_id]
                 
-                # Получаем имя пользователя
-                try:
-                    chat = bot.get_chat(user_id)
-                    user_name = chat.first_name
-                except:
-                    user_name = f"Пользователь {user_id}"
-                
-                mention = f'<a href="tg://user?id={user_id}">{user_name}</a>'
-                text = f"🚀 {mention}, ты не успел забрать коэффициент и проиграл"
-                
-                # Редактируем сообщение без кнопки
-                try:
-                    bot.edit_message_text(
-                        text,
-                        chat_id=game["chat_id"],
-                        message_id=game["message_id"],
-                        parse_mode="HTML"
-                    )
-                except Exception as e:
-                    logger.error(f"Ошибка редактирования сообщения при краше: {e}")
-                
-                # Удаляем из активных игр
-                rocket_games.pop(user_id, None)
-                rocket_messages.pop(user_id, None)
-                break
+                # Проверяем шанс краша
+                crash_chance = calculate_crash_chance(game["multiplier"])
+                if random.random() * 100 < crash_chance:
+                    game["crashed"] = True
+                    game["active"] = False
+                    
+                    # Получаем имя пользователя
+                    try:
+                        chat = bot.get_chat(user_id)
+                        user_name = chat.first_name
+                    except:
+                        user_name = f"Пользователь {user_id}"
+                    
+                    mention = f'<a href="tg://user?id={user_id}">{user_name}</a>'
+                    text = f"🚀 {mention}, ты не успел забрать коэффициент и проиграл {format_number(game['bet'])}$"
+                    
+                    # Редактируем сообщение без кнопки
+                    try:
+                        bot.edit_message_text(
+                            text,
+                            chat_id=game["chat_id"],
+                            message_id=game["message_id"],
+                            parse_mode="HTML"
+                        )
+                    except Exception as e:
+                        logger.error(f"Ошибка редактирования сообщения при краше: {e}")
+                    
+                    # Удаляем из активных игр
+                    rocket_games.pop(user_id, None)
+                    rocket_messages.pop(user_id, None)
+                    break
             
             # Увеличиваем множитель
-            increment = random.uniform(0.01, 0.05)  # Меньший прирост для более плавного роста
+            increment = random.uniform(0.01, 0.05)
             game["multiplier"] += increment
             game["multiplier"] = round(game["multiplier"], 2)
             
@@ -10349,11 +10366,10 @@ def rocket_game_loop(user_id):
                 kb = InlineKeyboardMarkup()
                 kb.add(InlineKeyboardButton("ЗАБРАТЬ", callback_data=f"rocket_take_{user_id}"))
                 
-                # Форматируем множитель с 2 знаками после запятой
                 multiplier_str = f"{game['multiplier']:.2f}"
                 
                 bot.edit_message_text(
-                    f"{mention} начал игру в ракетку 🚀\n💹 Коэффициент: {multiplier_str}×",
+                    f"{mention} начал игру в ракетку 🚀\n💹 Коэффициент: {multiplier_str}×\n💰 Ставка: {format_number(game['bet'])}$",
                     chat_id=game["chat_id"],
                     message_id=game["message_id"],
                     parse_mode="HTML",
@@ -10364,40 +10380,42 @@ def rocket_game_loop(user_id):
                 
             except Exception as e:
                 logger.error(f"Ошибка обновления сообщения ракетки: {e}")
+                with rocket_lock:
+                    if user_id in rocket_games:
+                        rocket_games[user_id]["active"] = False
                 break
             
             # Автоматический краш на высоком множителе
             if game["multiplier"] >= 20.0:
-                game["crashed"] = True
-                
-                # Получаем имя пользователя
-                try:
-                    chat = bot.get_chat(user_id)
-                    user_name = chat.first_name
-                except:
-                    user_name = f"Пользователь {user_id}"
-                
-                mention = f'<a href="tg://user?id={user_id}">{user_name}</a>'
-                text = f"🚀 {mention}, ты не успел забрать коэффициент и проиграл"
-                
-                try:
-                    bot.edit_message_text(
-                        text,
-                        chat_id=game["chat_id"],
-                        message_id=game["message_id"],
-                        parse_mode="HTML"
-                    )
-                except:
-                    pass
-                
-                rocket_games.pop(user_id, None)
-                rocket_messages.pop(user_id, None)
-                break
-                
+                with rocket_lock:
+                    if user_id in rocket_games:
+                        rocket_games[user_id]["crashed"] = True
+                        rocket_games[user_id]["active"] = False
+                        
+                        mention = f'<a href="tg://user?id={user_id}">{bot.get_chat(user_id).first_name}</a>'
+                        text = f"🚀 {mention}, ты не успел забрать коэффициент и проиграл {format_number(game['bet'])}$"
+                        
+                        try:
+                            bot.edit_message_text(
+                                text,
+                                chat_id=game["chat_id"],
+                                message_id=game["message_id"],
+                                parse_mode="HTML"
+                            )
+                        except:
+                            pass
+                        
+                        rocket_games.pop(user_id, None)
+                        rocket_messages.pop(user_id, None)
+                        break
+                        
     except Exception as e:
         logger.error(f"Ошибка в луп ракетки для {user_id}: {e}")
-        rocket_games.pop(user_id, None)
-        rocket_messages.pop(user_id, None)
+        with rocket_lock:
+            if user_id in rocket_games:
+                rocket_games.pop(user_id, None)
+            if user_id in rocket_messages:
+                rocket_messages.pop(user_id, None)
 
 @bot.callback_query_handler(func=lambda c: c.data.startswith("rocket_take_"))
 def rocket_take(call):
@@ -10408,15 +10426,20 @@ def rocket_take(call):
             bot.answer_callback_query(call.id, "❌ Это не твоя ракетка!", show_alert=True)
             return
         
-        if owner_id not in rocket_games:
-            bot.answer_callback_query(call.id, "❌ Игра уже завершена!", show_alert=True)
-            return
-        
-        game = rocket_games[owner_id]
-        
-        if game["crashed"]:
-            bot.answer_callback_query(call.id, "❌ Ракета уже упала!", show_alert=True)
-            return
+        with rocket_lock:
+            if owner_id not in rocket_games:
+                bot.answer_callback_query(call.id, "❌ Игра уже завершена!", show_alert=True)
+                return
+            
+            game = rocket_games[owner_id]
+            
+            if game["crashed"] or not game["active"]:
+                bot.answer_callback_query(call.id, "❌ Ракета уже упала!", show_alert=True)
+                return
+            
+            # Помечаем игру как неактивную
+            game["active"] = False
+            rocket_games[owner_id]["active"] = False
         
         win_amount = int(game["bet"] * game["multiplier"])
         user_data = get_user_data(owner_id)
@@ -10427,25 +10450,36 @@ def rocket_take(call):
         multiplier_str = f"{game['multiplier']:.2f}"
         
         text = (
-            f"{mention}, твоя ставка {format_number(game['bet'])}$ увеличилась на {multiplier_str}×\n"
+            f"{mention} забрал(а) коэффициент {multiplier_str}×\n"
+            f"💰 Ставка: {format_number(game['bet'])}$\n"
             f"🎉 Выигрыш: {format_number(win_amount)}$\n"
-            f"💰 Баланс: {format_number(user_data['balance'])}$"
+            f"💵 Баланс: {format_number(user_data['balance'])}$"
         )
         
-        bot.edit_message_text(
-            text,
-            chat_id=game["chat_id"],
-            message_id=game["message_id"],
-            parse_mode="HTML"
-        )
+        try:
+            bot.edit_message_text(
+                text,
+                chat_id=game["chat_id"],
+                message_id=game["message_id"],
+                parse_mode="HTML"
+            )
+        except Exception as e:
+            logger.error(f"Ошибка редактирования сообщения при выигрыше: {e}")
         
-        rocket_games.pop(owner_id, None)
-        rocket_messages.pop(owner_id, None)
+        with rocket_lock:
+            rocket_games.pop(owner_id, None)
+            rocket_messages.pop(owner_id, None)
+            
         bot.answer_callback_query(call.id, f"✅ +{format_number(win_amount)}$")
         
     except Exception as e:
         logger.error(f"Ошибка взятия ракетки: {e}")
         bot.answer_callback_query(call.id, "❌ Ошибка!", show_alert=True)
+        with rocket_lock:
+            if owner_id in rocket_games:
+                rocket_games.pop(owner_id, None)
+            if owner_id in rocket_messages:
+                rocket_messages.pop(owner_id, None)
 
 # Очистка зависших игр каждые 5 минут
 def cleanup_rocket_games():
@@ -10454,24 +10488,31 @@ def cleanup_rocket_games():
             current_time = time.time()
             to_remove = []
             
-            for user_id, game in rocket_games.items():
-                if current_time - game.get("start_time", 0) > 300:  # 5 минут таймаут
-                    to_remove.append(user_id)
-                    try:
-                        mention = f'<a href="tg://user?id={user_id}">{bot.get_chat(user_id).first_name}</a>'
-                        bot.edit_message_text(
-                            f"{mention}, игра отменена (таймаут)",
-                            chat_id=game["chat_id"],
-                            message_id=game["message_id"],
-                            parse_mode="HTML"
-                        )
-                    except:
-                        pass
+            with rocket_lock:
+                for user_id, game in rocket_games.items():
+                    if current_time - game.get("start_time", 0) > 300:  # 5 минут таймаут
+                        to_remove.append(user_id)
+                        try:
+                            mention = f'<a href="tg://user?id={user_id}">{bot.get_chat(user_id).first_name}</a>'
+                            bot.edit_message_text(
+                                f"⏰ {mention}, игра отменена (таймаут)\n💰 Возвращено: {format_number(game['bet'])}$",
+                                chat_id=game["chat_id"],
+                                message_id=game["message_id"],
+                                parse_mode="HTML"
+                            )
+                            
+                            # Возвращаем ставку
+                            user_data = get_user_data(user_id)
+                            user_data["balance"] += game["bet"]
+                            save_casino_data()
+                            
+                        except:
+                            pass
             
-            for user_id in to_remove:
-                rocket_games.pop(user_id, None)
-                rocket_messages.pop(user_id, None)
-                
+                for user_id in to_remove:
+                    rocket_games.pop(user_id, None)
+                    rocket_messages.pop(user_id, None)
+                    
         except Exception as e:
             logger.error(f"Ошибка очистки ракеток: {e}")
         
@@ -10480,7 +10521,7 @@ def cleanup_rocket_games():
 # Запуск очистки в отдельном потоке
 threading.Thread(target=cleanup_rocket_games, daemon=True).start()
 
-print("✅ Игры 'Слоты' и 'Ракетка' загружены и готовы!")
+print("✅ Игра 'Ракетка' исправлена и готова!")
 
 # ================== ИГРА В КУБИК (1 НА 1) ==================
 DICE_DB = "dice_games.db"
