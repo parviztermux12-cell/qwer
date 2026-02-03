@@ -9956,10 +9956,10 @@ def show_roulette_logs(message):
         logger.error(f"Ошибка показа логов рулетки: {e}")
         bot.reply_to(message, "❌ Ошибка при получении логов!")
         
-# ================== ФУТБОЛ / БАСКЕТБОЛ / ТИР (50/50) С АНИМАЦИЕЙ ЭМОДЗИ ==================
+# ================== ФУТБОЛ / БАСКЕТБОЛ / ТИР (50/50) БЕЗ АНИМАЦИИ ==================
 
-def sport_game_with_emoji_animation(message, game_type, bet):
-    """Игра с анимацией эмодзи, как в популярных ботах"""
+def sport_game_simple(message, game_type, bet):
+    """Упрощенная версия игры без анимации"""
     user_id = message.from_user.id
     user_data = get_user_data(user_id)
     mention = f'<a href="tg://user?id={user_id}">{message.from_user.first_name}</a>'
@@ -9975,25 +9975,22 @@ def sport_game_with_emoji_animation(message, game_type, bet):
 
     games = {
         "футбол": {
-            "ball": "⚽",
-            "goal": "🥅",
+            "emoji": "⚽",
             "name": "футбол",
-            "win_positions": ["🥅⚽", "🥅 ⚽", "🥅  ⚽"],  # Мяч в воротах
-            "lose_positions": ["⚽🥅", "⚽ 🥅", "⚽  🥅"]  # Мяч мимо
+            "action1": "Целимся в ворота...",
+            "action2": "Делаем удар по воротам..."
         },
         "баскетбол": {
-            "ball": "🏀",
-            "goal": "🏀",
+            "emoji": "🏀",
             "name": "баскетбол",
-            "win_positions": ["🏀\n⬇️\n🎯", " 🏀\n  ⬇️\n 🎯", "  🏀\n   ⬇️\n  🎯"],  # Мяч в кольце
-            "lose_positions": ["🏀\n➡️\n🎯", " 🏀\n  ➡️\n 🎯", "  🏀\n   ➡️\n  🎯"]  # Мяч мимо
+            "action1": "Целимся в кольцо...",
+            "action2": "Делаем бросок..."
         },
         "тир": {
-            "ball": "🎯",
-            "goal": "🎯",
+            "emoji": "🎯",
             "name": "тир",
-            "win_positions": ["🎯\n⬇️\n🎯", " 🎯\n  ⬇️\n 🎯", "  🎯\n   ⬇️\n  🎯"],  # Попадание
-            "lose_positions": ["🎯\n➡️\n🎯", " 🎯\n  ➡️\n 🎯", "  🎯\n   ➡️\n  🎯"]  # Промах
+            "action1": "Целимся в мишень...",
+            "action2": "Кидаем дротик..."
         }
     }
 
@@ -10002,134 +9999,58 @@ def sport_game_with_emoji_animation(message, game_type, bet):
 
     game_info = games[game_type]
     
-    # Списываем ставку сразу
+    # Списываем ставку
     user_data["balance"] -= bet
     save_casino_data()
 
-    # Определяем результат ДО анимации
+    # Определяем результат
     win = random.choice([True, False])
     
-    # Стартовое сообщение
-    start_text = f"🎮 {mention}, играем в {game_info['name']}!\n\n"
-    start_text += f"💰 Ставка: <b>{format_number(bet)}$</b>\n"
-    start_text += f"⚽ Шанс выигрыша: 50%\n\n"
-    start_text += f"⏳ Готовим анимацию..."
-    
-    msg = bot.reply_to(message, start_text, parse_mode="HTML")
-    time.sleep(1)
-    
-    # Анимация 1: Подготовка
-    if game_type == "футбол":
-        anim1 = f"         🥅\n\n\n{game_info['ball']}"
-    elif game_type == "баскетбол":
-        anim1 = f"   🏀\n\n\n🎯"
-    else:  # тир
-        anim1 = f"   🎯\n\n\n🎯"
-    
-    bot.edit_message_text(
-        f"🎮 {mention}, играем в {game_info['name']}!\n\n"
-        f"💰 Ставка: <b>{format_number(bet)}$</b>\n"
-        f"⚽ Шанс выигрыша: 50%\n\n"
-        f"{anim1}\n\n"
-        f"⏳ Целимся...",
-        message.chat.id,
-        msg.message_id,
+    # Первое сообщение
+    msg1 = bot.reply_to(
+        message,
+        f"{game_info['emoji']} {game_info['action1']}",
         parse_mode="HTML"
     )
     time.sleep(1)
     
-    # Анимация 2: Прицеливание
-    if game_type == "футбол":
-        anim2 = f"         🥅\n\n{game_info['ball']}"
-    elif game_type == "баскетбол":
-        anim2 = f"   🏀\n\n🎯"
-    else:  # тир
-        anim2 = f"   🎯\n\n🎯"
-    
-    bot.edit_message_text(
-        f"🎮 {mention}, играем в {game_info['name']}!\n\n"
-        f"💰 Ставка: <b>{format_number(bet)}$</b>\n"
-        f"⚽ Шанс выигрыша: 50%\n\n"
-        f"{anim2}\n\n"
-        f"🎯 Целимся...",
-        message.chat.id,
-        msg.message_id,
+    # Второе сообщение (отвечает на первое)
+    msg2 = bot.reply_to(
+        msg1,
+        f"{game_info['emoji']} {game_info['action2']}",
         parse_mode="HTML"
     )
     time.sleep(1)
     
-    # Анимация 3: Бросок/удар
-    if game_type == "футбол":
-        anim3 = f"         🥅\n{game_info['ball']}"
-    elif game_type == "баскетбол":
-        anim3 = f"   🏀\n🎯"
-    else:  # тир
-        anim3 = f"   🎯\n🎯"
-    
-    bot.edit_message_text(
-        f"🎮 {mention}, играем в {game_info['name']}!\n\n"
-        f"💰 Ставка: <b>{format_number(bet)}$</b>\n"
-        f"⚽ Шанс выигрыша: 50%\n\n"
-        f"{anim3}\n\n"
-        f"🚀 Бросок!",
-        message.chat.id,
-        msg.message_id,
-        parse_mode="HTML"
-    )
-    time.sleep(1)
-    
-    # Результат
+    # Третье сообщение с результатом (отвечает на второе)
     if win:
         win_amount = bet * 2
         user_data["balance"] += win_amount
         save_casino_data()
         
-        if game_type == "футбол":
-            result_anim = f"⚽➡️🥅\n\n✅ ГОООООЛ!"
-            result_text = "🎉 Ты забил гол! ⚽"
-        elif game_type == "баскетбол":
-            result_anim = f"🏀⬇️\n🎯\n\n✅ Попадание!"
-            result_text = "🎉 Ты попал в кольцо! 🏀"
-        else:  # тир
-            result_anim = f"🎯⬇️\n🎯\n\n✅ В яблочко!"
-            result_text = "🎉 Ты попал в цель! 🎯"
-            
-        bot.edit_message_text(
-            f"🎮 {mention}, играем в {game_info['name']}!\n\n"
-            f"💰 Ставка: <b>{format_number(bet)}$</b>\n"
-            f"⚽ Шанс выигрыша: 50%\n\n"
-            f"{result_anim}\n\n"
-            f"<b>🎉 ВЫИГРЫШ!</b>\n"
-            f"💰 +{format_number(win_amount)}$\n"
-            f"💳 Баланс: <b>{format_number(user_data['balance'])}$</b>",
-            message.chat.id,
-            msg.message_id,
+        msg3 = bot.reply_to(
+            msg2,
+            f"🔴 {mention}, ты попал по цели, выигрыш составил: {format_number(win_amount)}$",
             parse_mode="HTML"
         )
-        
     else:
-        if game_type == "футбол":
-            result_anim = f"⚽➡️\n   🥅\n\n❌ Мимо!"
-            result_text = "😔 Мяч пролетел мимо ворот"
-        elif game_type == "баскетбол":
-            result_anim = f"🏀➡️\n  🎯\n\n❌ Мимо!"
-            result_text = "😔 Мяч не попал в кольцо"
-        else:  # тир
-            result_anim = f"🎯➡️\n  🎯\n\n❌ Мимо!"
-            result_text = "😔 Промах по мишени"
-            
-        bot.edit_message_text(
-            f"🎮 {mention}, играем в {game_info['name']}!\n\n"
-            f"💰 Ставка: <b>{format_number(bet)}$</b>\n"
-            f"⚽ Шанс выигрыша: 50%\n\n"
-            f"{result_anim}\n\n"
-            f"<b>😔 ПРОИГРЫШ</b>\n"
-            f"💰 -{format_number(bet)}$\n"
-            f"💳 Баланс: <b>{format_number(user_data['balance'])}$</b>",
-            message.chat.id,
-            msg.message_id,
+        msg3 = bot.reply_to(
+            msg2,
+            f"🔴 {mention}, ты промахнулся, проигрыш составил: {format_number(bet)}$",
             parse_mode="HTML"
         )
+    
+    # Ждем 2 секунды и удаляем все сообщения
+    time.sleep(2)
+    try:
+        bot.delete_message(message.chat.id, msg1.message_id)
+        bot.delete_message(message.chat.id, msg2.message_id)
+        bot.delete_message(message.chat.id, msg3.message_id)
+        # Также удаляем оригинальное сообщение с командой если это не в ЛС
+        if message.chat.type != "private":
+            bot.delete_message(message.chat.id, message.message_id)
+    except:
+        pass  # Если не удалось удалить - не страшно
 
 
 @bot.message_handler(func=lambda m: m.text and m.text.lower().startswith("футбол"))
@@ -10141,7 +10062,7 @@ def football_game(message):
             return
 
         bet = int(parts[1])
-        sport_game_with_emoji_animation(message, "футбол", bet)
+        sport_game_simple(message, "футбол", bet)
 
     except ValueError:
         bot.reply_to(message, "❌ Сумма должна быть числом!\nПример: <code>футбол 1000</code>", parse_mode="HTML")
@@ -10163,7 +10084,7 @@ def basketball_game(message):
             return
 
         bet = int(parts[1])
-        sport_game_with_emoji_animation(message, "баскетбол", bet)
+        sport_game_simple(message, "баскетбол", bet)
 
     except ValueError:
         bot.reply_to(message, "❌ Сумма должна быть числом!\nПример: <code>баскетбол 1000</code>", parse_mode="HTML")
@@ -10181,7 +10102,7 @@ def shooting_game(message):
             return
 
         bet = int(parts[1])
-        sport_game_with_emoji_animation(message, "тир", bet)
+        sport_game_simple(message, "тир", bet)
 
     except ValueError:
         bot.reply_to(message, "❌ Сумма должна быть числом!\nПример: <code>тир 1000</code>", parse_mode="HTML")
@@ -10190,11 +10111,11 @@ def shooting_game(message):
         bot.reply_to(message, "❌ Произошла ошибка в игре. Попробуйте еще раз.")
 
 
-print("✅ Игры футбол/баскетбол/тир с анимацией загружены! ⚽🏀🎯")
+print("✅ Игры футбол/баскетбол/тир без анимации загружены! ⚽🏀🎯")
 
-# ================== СЛОТЫ ==================
+# ================== СЛОТЫ (ИСПРАВЛЕННАЯ ВЕРСИЯ) ==================
 
-SLOT_SYMBOLS = ["🍒", "⭐", "🍋", "🍊", "💎", "🍀"]
+SLOT_SYMBOLS = ["🍒", "⭐", "🍋", "🍊", "💎", "🍀", "❌", "❌", "❌", "❌"]  # Добавлены проигрышные символы
 SLOT_MULTIPLIERS = {
     "💎💎💎": 10.0,
     "🍒🍒🍒": 5.0,
@@ -10232,16 +10153,38 @@ def slot_game(message):
         user_data["balance"] -= bet
         save_casino_data()
         
-        slots = [random.choice(SLOT_SYMBOLS) for _ in range(3)]
-        slot_str = "".join(slots)
+        # Генерируем слоты с учетом вероятности проигрыша 45%
+        if random.random() < 0.45:  # 45% шанс проигрыша
+            # Генерируем гарантированный проигрыш (нет выигрышных комбинаций)
+            while True:
+                slots = [random.choice(SLOT_SYMBOLS) for _ in range(3)]
+                slot_str = "".join(slots)
+                
+                # Проверяем, что это не выигрышная комбинация
+                is_winning = False
+                if slot_str in SLOT_MULTIPLIERS:
+                    is_winning = True
+                else:
+                    for symbol in SLOT_SYMBOLS:
+                        if slot_str.count(symbol) == 2 and symbol not in ["❌"]:
+                            is_winning = True
+                            break
+                
+                if not is_winning:
+                    break
+        else:
+            # 55% шанс на возможный выигрыш
+            slots = [random.choice(SLOT_SYMBOLS) for _ in range(3)]
+            slot_str = "".join(slots)
         
         win_multiplier = 0
         
+        # Проверяем выигрышные комбинации
         if slot_str in SLOT_MULTIPLIERS:
             win_multiplier = SLOT_MULTIPLIERS[slot_str]
         else:
             for symbol in SLOT_SYMBOLS:
-                if slot_str.count(symbol) == 2:
+                if slot_str.count(symbol) == 2 and symbol not in ["❌"]:
                     win_multiplier = 1.5
                     break
         
@@ -10268,23 +10211,27 @@ def slot_game(message):
         logger.error(f"Ошибка в слотах: {e}")
         bot.reply_to(message, "❌ Ошибка в игре")
 
-# ================== РАКЕТКА (CRASH) ==================
+# ================== РАКЕТКА (CRASH - ИСПРАВЛЕННАЯ ВЕРСИЯ) ==================
 
 rocket_games = {}
+rocket_messages = {}  # Для хранения информации о сообщениях
 
 def calculate_crash_chance(multiplier):
-    if multiplier < 1.5:
-        return 0.5
-    elif multiplier < 2.0:
+    """Вероятность краша в зависимости от множителя"""
+    if multiplier < 1.1:
+        return 0.5  # 0.5% шанс краша на 1.0-1.1
+    elif multiplier < 1.5:
         return 1.0
-    elif multiplier < 3.0:
+    elif multiplier < 2.0:
         return 2.0
-    elif multiplier < 5.0:
+    elif multiplier < 3.0:
         return 5.0
-    elif multiplier < 10.0:
+    elif multiplier < 5.0:
         return 10.0
+    elif multiplier < 10.0:
+        return 15.0
     else:
-        return 20.0
+        return 25.0
 
 @bot.message_handler(func=lambda m: m.text and m.text.lower().startswith("ракетка"))
 def rocket_start(message):
@@ -10324,7 +10271,7 @@ def rocket_start(message):
         
         msg = bot.send_message(
             message.chat.id,
-            f"{mention} начал игру в ракетку 🚀.\n💹 Коэффициент: 1.00×",
+            f"{mention} начал игру в ракетку 🚀\n💹 Коэффициент: 1.00×",
             parse_mode="HTML",
             reply_markup=kb
         )
@@ -10333,11 +10280,16 @@ def rocket_start(message):
             "message_id": msg.message_id,
             "chat_id": message.chat.id,
             "bet": bet,
-            "multiplier": 1.0,
+            "multiplier": 1.00,
             "crashed": False,
-            "start_time": time.time()
+            "start_time": time.time(),
+            "last_update": time.time()
         }
         
+        # Сохраняем информацию о сообщении
+        rocket_messages[user_id] = msg.message_id
+        
+        # Запускаем игру в отдельном потоке
         threading.Thread(target=rocket_game_loop, args=(user_id,), daemon=True).start()
         
     except Exception as e:
@@ -10352,48 +10304,100 @@ def rocket_game_loop(user_id):
             if game["crashed"]:
                 break
             
-            time.sleep(0.2)
+            # Ждем 0.1 секунды между обновлениями
+            time.sleep(0.1)
             
-            if random.random() * 100 < calculate_crash_chance(game["multiplier"]):
+            # Проверяем шанс краша
+            crash_chance = calculate_crash_chance(game["multiplier"])
+            if random.random() * 100 < crash_chance:
                 game["crashed"] = True
                 
-                mention = f'<a href="tg://user?id={user_id}">{bot.get_chat(user_id).first_name}</a>'
-                text = f"{mention}, ты не успел забрать коэффициент и проиграл."
+                # Получаем имя пользователя
+                try:
+                    chat = bot.get_chat(user_id)
+                    user_name = chat.first_name
+                except:
+                    user_name = f"Пользователь {user_id}"
                 
-                bot.edit_message_text(
-                    text,
-                    chat_id=game["chat_id"],
-                    message_id=game["message_id"],
-                    parse_mode="HTML"
-                )
+                mention = f'<a href="tg://user?id={user_id}">{user_name}</a>'
+                text = f"🚀 {mention}, ты не успел забрать коэффициент и проиграл"
                 
+                # Редактируем сообщение без кнопки
+                try:
+                    bot.edit_message_text(
+                        text,
+                        chat_id=game["chat_id"],
+                        message_id=game["message_id"],
+                        parse_mode="HTML"
+                    )
+                except Exception as e:
+                    logger.error(f"Ошибка редактирования сообщения при краше: {e}")
+                
+                # Удаляем из активных игр
                 rocket_games.pop(user_id, None)
+                rocket_messages.pop(user_id, None)
                 break
             
-            game["multiplier"] += random.uniform(0.1, 0.3)
+            # Увеличиваем множитель
+            increment = random.uniform(0.01, 0.05)  # Меньший прирост для более плавного роста
+            game["multiplier"] += increment
             game["multiplier"] = round(game["multiplier"], 2)
             
+            # Обновляем сообщение каждые 0.1 секунды
             try:
+                mention = f'<a href="tg://user?id={user_id}">{bot.get_chat(user_id).first_name}</a>'
                 kb = InlineKeyboardMarkup()
                 kb.add(InlineKeyboardButton("ЗАБРАТЬ", callback_data=f"rocket_take_{user_id}"))
                 
+                # Форматируем множитель с 2 знаками после запятой
+                multiplier_str = f"{game['multiplier']:.2f}"
+                
                 bot.edit_message_text(
-                    f"{mention} начал игру в ракетку 🚀.\n💹 Коэффициент: {game['multiplier']}×",
+                    f"{mention} начал игру в ракетку 🚀\n💹 Коэффициент: {multiplier_str}×",
                     chat_id=game["chat_id"],
                     message_id=game["message_id"],
                     parse_mode="HTML",
                     reply_markup=kb
                 )
-            except:
+                
+                game["last_update"] = time.time()
+                
+            except Exception as e:
+                logger.error(f"Ошибка обновления сообщения ракетки: {e}")
                 break
             
+            # Автоматический краш на высоком множителе
             if game["multiplier"] >= 20.0:
                 game["crashed"] = True
+                
+                # Получаем имя пользователя
+                try:
+                    chat = bot.get_chat(user_id)
+                    user_name = chat.first_name
+                except:
+                    user_name = f"Пользователь {user_id}"
+                
+                mention = f'<a href="tg://user?id={user_id}">{user_name}</a>'
+                text = f"🚀 {mention}, ты не успел забрать коэффициент и проиграл"
+                
+                try:
+                    bot.edit_message_text(
+                        text,
+                        chat_id=game["chat_id"],
+                        message_id=game["message_id"],
+                        parse_mode="HTML"
+                    )
+                except:
+                    pass
+                
+                rocket_games.pop(user_id, None)
+                rocket_messages.pop(user_id, None)
                 break
                 
     except Exception as e:
-        logger.error(f"Ошибка в луп ракетки: {e}")
+        logger.error(f"Ошибка в луп ракетки для {user_id}: {e}")
         rocket_games.pop(user_id, None)
+        rocket_messages.pop(user_id, None)
 
 @bot.callback_query_handler(func=lambda c: c.data.startswith("rocket_take_"))
 def rocket_take(call):
@@ -10420,8 +10424,10 @@ def rocket_take(call):
         save_casino_data()
         
         mention = f'<a href="tg://user?id={owner_id}">{call.from_user.first_name}</a>'
+        multiplier_str = f"{game['multiplier']:.2f}"
+        
         text = (
-            f"{mention}, твоя ставка {format_number(game['bet'])}$ увеличилась на {game['multiplier']}×.\n"
+            f"{mention}, твоя ставка {format_number(game['bet'])}$ увеличилась на {multiplier_str}×\n"
             f"🎉 Выигрыш: {format_number(win_amount)}$\n"
             f"💰 Баланс: {format_number(user_data['balance'])}$"
         )
@@ -10434,6 +10440,7 @@ def rocket_take(call):
         )
         
         rocket_games.pop(owner_id, None)
+        rocket_messages.pop(owner_id, None)
         bot.answer_callback_query(call.id, f"✅ +{format_number(win_amount)}$")
         
     except Exception as e:
@@ -10448,12 +10455,12 @@ def cleanup_rocket_games():
             to_remove = []
             
             for user_id, game in rocket_games.items():
-                if current_time - game.get("start_time", 0) > 300:
+                if current_time - game.get("start_time", 0) > 300:  # 5 минут таймаут
                     to_remove.append(user_id)
                     try:
                         mention = f'<a href="tg://user?id={user_id}">{bot.get_chat(user_id).first_name}</a>'
                         bot.edit_message_text(
-                            f"{mention}, игра отменена (таймаут).",
+                            f"{mention}, игра отменена (таймаут)",
                             chat_id=game["chat_id"],
                             message_id=game["message_id"],
                             parse_mode="HTML"
@@ -10463,11 +10470,12 @@ def cleanup_rocket_games():
             
             for user_id in to_remove:
                 rocket_games.pop(user_id, None)
+                rocket_messages.pop(user_id, None)
                 
         except Exception as e:
             logger.error(f"Ошибка очистки ракеток: {e}")
         
-        time.sleep(300)
+        time.sleep(300)  # Проверка каждые 5 минут
 
 # Запуск очистки в отдельном потоке
 threading.Thread(target=cleanup_rocket_games, daemon=True).start()
