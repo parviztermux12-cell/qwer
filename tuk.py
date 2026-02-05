@@ -11224,11 +11224,6 @@ def mines_pending_cancel_handler(call):
         
         user_data = get_user_data(user_id)
         
-        # Возвращаем ставку если она была
-        if "mines_pending_bet" in user_data:
-            user_data["balance"] += user_data["mines_pending_bet"]
-            del user_data["mines_pending_bet"]
-            save_casino_data()
         
         mention = f'<a href="tg://user?id={user_id}">{call.from_user.first_name}</a>'
         
