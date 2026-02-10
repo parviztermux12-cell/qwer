@@ -11364,27 +11364,27 @@ print("✅ Игры: футбол, баскетбол, тир и кубик за
 MINE_CONFIGS = {
     3: {
         "name": "Лёгкий",
-        "multiplier_increment": 1.50,
+        "multiplier_increment": 1.25,
         "base_multiplier": 1.0
     },
     5: {
         "name": "Средний",
-        "multiplier_increment": 1.50,
+        "multiplier_increment": 1.40,
         "base_multiplier": 1.0
     },
     10: {
         "name": "Сложный",
-        "multiplier_increment": 1.50,
+        "multiplier_increment": 2.00,
         "base_multiplier": 1.0
     },
     15: {
         "name": "Экстрим",
-        "multiplier_increment": 2.10,
+        "multiplier_increment": 2.25,
         "base_multiplier": 1.0
     },
     20: {
         "name": "Хардкор",
-        "multiplier_increment": 5.50,
+        "multiplier_increment": 4.00,
         "base_multiplier": 1.0
     }
 }
