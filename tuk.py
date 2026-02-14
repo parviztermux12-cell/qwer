@@ -31,7 +31,7 @@ logging.basicConfig(
 logger = logging.getLogger("LasVenturas By parviz")
 
 # ================== КОНСТАНТЫ И ОГРАНИЧЕНИЯ ==================
-TOKEN = "8086235115:AAGSGvs1Jum4mipvyZuoFKGh5ml_RvUUZbQ"
+TOKEN = "8259575977:AAHwfVOSF058L-bMan1l6NanOZUNsPrw7D0"
 WELCOME_IMAGE_URL = "https://i.supaimg.com/2939d8ad-5c5a-4bea-a182-6c3e8bbc833d.jpg"
 CASINO_IMAGE_URL = "https://avatars.mds.yandex.net/i?id=c651fbed170eb7128e00ff84ca1c0bf543c74de2-10332115-images-thumbs&n=13"
 BLACKJACK_IMAGE_URL = "https://avatars.mds.yandex.net/i?id=dc64180881834f3c5a302bda16d65de46956d887-5355514-images-thumbs&n=13&shower=-1&blur=-1"
@@ -693,20 +693,51 @@ def rp_action(message):
         text = RP_COMMANDS[cmd].format(user1=mention1, user2=mention2)
         bot.send_message(message.chat.id, text, parse_mode="HTML")
 
-# ================== СПИСОК RP КОМАНД В ОДНОМ СООБЩЕНИИ ==================
+# ================== УЛУЧШЕННЫЙ СПИСОК RP КОМАНД ==================
 
 @bot.message_handler(func=lambda m: m.text and m.text.lower() == "рп")
 def rp_list(message):
-    text = "🎭 <b>СПИСОК RP-КОМАНД</b> 🎭\n\n"
+    # Красивое оформление заголовка
+    text = "----------------------------------\n"
+    text += "🕹️ <b>РП КОМАНДЫ</b> 🕹️\n"
+    text += "---------------------------------\n\n"
     
-    for cmd, action in RP_COMMANDS.items():
-        # Убираем эмодзи и скобки, оставляем только текст действия
-        action_text = action.split(' ', 1)[1] if ' ' in action else action
-        text += f"<code>{cmd}</code>\n"
+    # Словарь эмодзи для каждой команды
+    cmd_emojis = {
+        "обнять": "🤗",
+        "поцеловать": "😘", 
+        "погладить": "✨",
+        "пощекотать": "🪶",
+        "подарить": "🎁",
+        "ударить": "👊",
+        "шлёпнуть": "🖐️",
+        "избить": "🥊",
+        "украсть": "🥷",
+        "выебать": "🍆",
+        "трахнуть": "🔥",
+        "отсосать": "👅",
+        "отлизать": "💦",
+        "закурить": "🚬"
+    }
     
-    text += "\n💫 <i>Используй команды в ответ на сообщение пользователя!</i>"
+    # Все команды в алфавитном порядке (вертикальный список)
+    all_commands = sorted(RP_COMMANDS.keys())
     
-    bot.send_message(message.chat.id, text, parse_mode='HTML')
+    # Выводим каждую команду с новой строки
+    for cmd in all_commands:
+        emoji = cmd_emojis.get(cmd, "🎭")
+        text += f"[{emoji}] <b>{cmd.capitalize()}</b>\n"
+    
+    text += "\n----------------------------------\n"
+    text += "💬 <b>Работают только ответом на сообщение</b>\n"
+    text += "----------------------------------"
+    
+    bot.send_message(
+        message.chat.id, 
+        text, 
+        parse_mode='HTML',
+        disable_web_page_preview=True
+    )
     
  
         
@@ -1660,595 +1691,7 @@ def unban_user(message):
         parse_mode="HTML"
     )
     
-    # ================== НОВОГОДНИЙ КАЛЕНДАРЬ (ИВЕНТ) ==================
-NEW_YEAR_DB = "new_year_calendar.db"
-
-# Инициализация базы данных для календаря
-def init_new_year_db():
-    conn = sqlite3.connect(NEW_YEAR_DB)
-    c = conn.cursor()
-    
-    # Таблица для отслеживания наград
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS new_year_calendar (
-            user_id INTEGER PRIMARY KEY,
-            username TEXT,
-            last_claimed_date TEXT,
-            total_claimed INTEGER DEFAULT 0,
-            prizes_won TEXT DEFAULT '[]'
-        )
-    """)
-    
-    conn.commit()
-    conn.close()
-
-init_new_year_db()
-
-def get_user_new_year_data(user_id):
-    """Получает данные пользователя о новогоднем календаре"""
-    conn = sqlite3.connect(NEW_YEAR_DB)
-    c = conn.cursor()
-    
-    c.execute("SELECT last_claimed_date, total_claimed, prizes_won FROM new_year_calendar WHERE user_id = ?", (user_id,))
-    result = c.fetchone()
-    
-    if not result:
-        # Создаем запись если нет
-        today = date.today().isoformat()
-        c.execute("INSERT INTO new_year_calendar (user_id, username, last_claimed_date, total_claimed, prizes_won) VALUES (?, ?, ?, ?, ?)",
-                  (user_id, "", today, 0, "[]"))
-        conn.commit()
-        
-        conn.close()
-        return {
-            "last_claimed_date": today,
-            "total_claimed": 0,
-            "prizes_won": []
-        }
-    
-    last_claimed_date, total_claimed, prizes_won_json = result
-    
-    # Парсим JSON список призов
-    try:
-        prizes_won = json.loads(prizes_won_json) if prizes_won_json else []
-    except:
-        prizes_won = []
-    
-    conn.close()
-    
-    return {
-        "last_claimed_date": last_claimed_date,
-        "total_claimed": total_claimed,
-        "prizes_won": prizes_won
-    }
-
-def update_user_new_year_data(user_id, username, prize_info):
-    """Обновляет данные пользователя после получения подарка"""
-    conn = sqlite3.connect(NEW_YEAR_DB)
-    c = conn.cursor()
-    
-    today = date.today().isoformat()
-    
-    # Получаем текущие данные
-    c.execute("SELECT prizes_won FROM new_year_calendar WHERE user_id = ?", (user_id,))
-    result = c.fetchone()
-    
-    if result:
-        try:
-            prizes_won = json.loads(result[0]) if result[0] else []
-        except:
-            prizes_won = []
-        
-        # Добавляем новый приз
-        prizes_won.append({
-            "date": today,
-            "prize": prize_info
-        })
-        
-        # Обновляем запись
-        c.execute("""
-            UPDATE new_year_calendar 
-            SET username = ?, last_claimed_date = ?, total_claimed = total_claimed + 1, prizes_won = ?
-            WHERE user_id = ?
-        """, (username, today, json.dumps(prizes_won), user_id))
-    else:
-        # Создаем новую запись
-        prizes_won = [{"date": today, "prize": prize_info}]
-        c.execute("""
-            INSERT INTO new_year_calendar (user_id, username, last_claimed_date, total_claimed, prizes_won)
-            VALUES (?, ?, ?, 1, ?)
-        """, (user_id, username, today, json.dumps(prizes_won)))
-    
-    conn.commit()
-    conn.close()
-
-def can_claim_daily_gift(user_id):
-    """Проверяет, может ли пользователь получить ежедневный подарок"""
-    data = get_user_new_year_data(user_id)
-    today = date.today().isoformat()
-    return data["last_claimed_date"] != today
-
-def get_random_prize(user_id):
-    """Выбирает случайный подарок с учетом того, что уже есть у пользователя"""
-    user_data = get_user_data(user_id)
-    
-    # Проверяем, что есть у пользователя
-    has_vip = user_data.get("vip", {}).get("level", 0) > 0
-    has_pet = get_pet(user_id) is not None
-    has_car = user_data.get("car") is not None
-    
-    # Определяем доступные типы подарков
-    available_prizes = []
-    
-    # Деньги - всегда доступны
-    money_prizes = [
-        {"type": "money", "amount": random.randint(1000, 5000), "emoji": "💰", "name": "Новогодний бонус"},
-        {"type": "money", "amount": random.randint(5000, 15000), "emoji": "💰", "name": "Зимний куш"},
-        {"type": "money", "amount": random.randint(15000, 30000), "emoji": "💎", "name": "Снежный джекпот"},
-        {"type": "money", "amount": random.randint(50000, 100000), "emoji": "🎁", "name": "Подарок Деда Мороза"},
-    ]
-    available_prizes.extend(money_prizes)
-    
-    # Питомцы - если нет питомца
-    if not has_pet:
-        for pet_id, pet_info in PETS_DATA.items():
-            available_prizes.append({
-                "type": "pet",
-                "pet_id": pet_id,
-                "name": pet_info["name"],
-                "price": pet_info["price"],
-                "emoji": "🐾",
-                "rarity": PET_RARITY[pet_info["rarity"]]["emoji"]
-            })
-    
-    # Випы - если нет VIP
-    if not has_vip:
-        for level in range(1, 4):  # VIP 1-3 уровня
-            vip_info = VIP_LEVELS[level]
-            available_prizes.append({
-                "type": "vip",
-                "level": level,
-                "name": vip_info["name"],
-                "prefix": vip_info["prefix"],
-                "days": random.randint(3, 7),
-                "emoji": vip_info["prefix"]
-            })
-    
-    # Машины - если нет машины
-    if not has_car:
-        for car_name, car_info in CAR_DATA.items():
-            available_prizes.append({
-                "type": "car",
-                "name": car_name,
-                "price": car_info["price"],
-                "profit": car_info["profit_per_hour"],
-                "emoji": "🚗"
-            })
-    
-    # Префиксы - всегда доступны (если у пользователя нет префикса или можно заменить)
-    user_prefix = get_user_prefix(user_id)
-    if not user_prefix:
-        prefix_prizes = [
-            {"type": "prefix", "prefix_id": 1, "name": "🔰 Новичок", "price": 500000, "emoji": "🔰"},
-            {"type": "prefix", "prefix_id": 2, "name": "🔥 Огонь", "price": 1000000, "emoji": "🔥"},
-            {"type": "prefix", "prefix_id": 3, "name": "🎅 Дед Мороз", "price": 750000, "emoji": "🎅"},
-            {"type": "prefix", "prefix_id": 4, "name": "⛄ Снеговик", "price": 600000, "emoji": "⛄"},
-        ]
-        available_prizes.extend(prefix_prizes)
-    
-    # Выбираем случайный подарок
-    if available_prizes:
-        return random.choice(available_prizes)
-    else:
-        # Если все типы подарков уже есть, даем деньги
-        return {
-            "type": "money",
-            "amount": random.randint(50000, 150000),
-            "emoji": "🎁",
-            "name": "Особый новогодний бонус"
-        }
-
-def give_prize_to_user(user_id, prize):
-    """Выдает подарок пользователю"""
-    user_data = get_user_data(user_id)
-    
-    if prize["type"] == "money":
-        amount = prize["amount"]
-        user_data["balance"] += amount
-        return f"{prize['emoji']} <b>{prize['name']}</b> — <code>{format_number(amount)}$</code>"
-    
-    elif prize["type"] == "pet":
-        pet_info = PETS_DATA.get(prize["pet_id"])
-        if pet_info:
-            # Проверяем, нет ли уже питомца
-            if get_pet(user_id):
-                # Если есть питомец, продаем текущего и покупаем нового
-                current_pet = get_pet(user_id)
-                refund = current_pet[2] // 2  # 50% стоимости
-                user_data["balance"] += refund
-                delete_pet(user_id)
-            
-            # Создаем нового питомца
-            set_pet(user_id, prize["pet_id"], pet_info["name"], pet_info["price"])
-            rarity_info = PET_RARITY[pet_info["rarity"]]
-            return f"{prize['emoji']} <b>{pet_info['name']}</b> {rarity_info['emoji']} — Новый питомец!"
-    
-    elif prize["type"] == "vip":
-        vip_level = prize["level"]
-        vip_info = VIP_LEVELS[vip_level]
-        
-        # Выдаем VIP
-        user_data["vip"] = {
-            "level": vip_level,
-            "expires": (datetime.now() + timedelta(days=prize["days"])).isoformat(),
-            "purchase_price": vip_level * 250000,
-            "last_income": datetime.now().isoformat()
-        }
-        
-        # Устанавливаем таймер для дохода
-        vip_income_timers[user_id] = time.time()
-        
-        return f"{prize['emoji']} <b>VIP {vip_info['name']}</b> — на {prize['days']} дней!"
-    
-    elif prize["type"] == "car":
-        car_name = prize["name"]
-        car_info = CAR_DATA.get(car_name)
-        
-        if car_info:
-            # Если уже есть машина, продаем старую
-            if user_data.get("car"):
-                old_car = user_data["car"]
-                refund = old_car.get("price", 0) // 2
-                user_data["balance"] += refund
-            
-            # Даем новую машину
-            user_data["car"] = {
-                "name": car_name,
-                "price": car_info["price"],
-                "profit_per_hour": car_info["profit_per_hour"],
-                "image": car_info["image"],
-                "upkeep_cost": car_info["upkeep_cost"]
-            }
-            return f"{prize['emoji']} <b>{car_name}</b> — Новый автомобиль!"
-    
-    elif prize["type"] == "prefix":
-        # Устанавливаем префикс
-        prefix_data = {
-            1: {"id": 1, "name": "🔰 Новичок", "price": 500000},
-            2: {"id": 2, "name": "🔥 Огонь", "price": 1000000},
-            3: {"id": 3, "name": "🎅 Дед Мороз", "price": 750000},
-            4: {"id": 4, "name": "⛄ Снеговик", "price": 600000},
-        }
-        
-        prefix_info = prefix_data.get(prize["prefix_id"])
-        if prefix_info:
-            # Если есть префикс, продаем старый
-            current_prefix = get_user_prefix(user_id)
-            if current_prefix:
-                refund = current_prefix["price_paid"] // 4
-                user_data["balance"] += refund
-            
-            # Устанавливаем новый
-            set_user_prefix(user_id, prefix_info["id"], prefix_info["price"])
-            return f"{prize['emoji']} <b>{prefix_info['name']}</b> — Новый префикс!"
-    
-    save_casino_data()
-    return f"{prize['emoji']} <b>{prize.get('name', 'Подарок')}</b>"
-
-@bot.message_handler(func=lambda m: m.text and m.text.lower() in ["новогодний калдсжвжчдсарь", "кжвдсдвжрь", "фэажсдсьчдысдсж", "нжвжсжвжвж", "нйхвббфжсьжыжад"])
-def new_year_calendar(message):
-    """Показывает новогодний календарь"""
-    user_id = message.from_user.id
-    username = message.from_user.username or message.from_user.first_name
-    mention = f'<a href="tg://user?id={user_id}">{message.from_user.first_name}</a>'
-    
-    # Получаем данные о календаре
-    calendar_data = get_user_new_year_data(user_id)
-    today = date.today().isoformat()
-    can_claim = calendar_data["last_claimed_date"] != today
-    
-    # Красивый новогодний дизайн
-    calendar_image = "https://img.freepik.com/premium-photo/christmas-gift-box-bauble-isolated-white-background_146936-1271.jpg?semt=ais_hybrid&w=740"  # Новогодняя тематика
-    
-    # Формируем текст
-    if can_claim:
-        status_text = "🎁 <b>Подарок готов к получению!</b>"
-        button_text = "☃️ Получить подарок"
-        button_callback = f"new_year_claim_{user_id}"
-    else:
-        # Рассчитываем время до следующего подарка
-        last_date = datetime.fromisoformat(calendar_data["last_claimed_date"])
-        next_date = last_date + timedelta(days=1)
-        now = datetime.now()
-        
-        if now < next_date:
-            time_left = next_date - now
-            hours = time_left.seconds // 3600
-            minutes = (time_left.seconds % 3600) // 60
-            
-            status_text = f"⏳ <b>Следующий подарок через:</b> {hours}ч {minutes}м"
-            button_text = "❄️ Уже получено сегодня"
-            button_callback = "new_year_already_claimed"
-        else:
-            status_text = "🎁 <b>Подарок готов к получению!</b>"
-            button_text = "☃️ Получить подарок"
-            button_callback = f"new_year_claim_{user_id}"
-    
-    text = (
-        f"🎄✨ <b>НОВОГОДНИЙ КАЛЕНДАРЬ 2026</b> ✨🎄\n\n"
-        f"🎅 Добро пожаловать в зимнюю сказку, {mention}!\n\n"
-        f"{status_text}\n\n"
-        f"📊 <b>Статистика:</b>\n"
-        f"• Всего получено подарков: <b>{calendar_data['total_claimed']}</b>\n"
-        f"• Последний подарок: <b>{'Сегодня' if calendar_data['last_claimed_date'] == today else 'Вчера' if calendar_data['last_claimed_date'] == (date.today() - timedelta(days=1)).isoformat() else 'Ранее'}</b>\n\n"
-        f"🎁 <b>Возможные подарки: может выпасть все что угодно</b>\n"
-    )
-    
-    # Создаем клавиатуру
-    kb = InlineKeyboardMarkup()
-    
-    if can_claim or button_callback.startswith("new_year_claim"):
-        kb.add(InlineKeyboardButton(button_text, callback_data=button_callback))
-    else:
-        kb.add(InlineKeyboardButton(button_text, callback_data="no_action"))
-    
-    kb.add(
-        InlineKeyboardButton("📜 Мои подарки", callback_data=f"new_year_prizes_{user_id}"))
-    
-    # Отправляем сообщение с картинкой
-    try:
-        bot.send_photo(
-            message.chat.id,
-            calendar_image,
-            caption=text,
-            parse_mode="HTML",
-            reply_markup=kb
-        )
-    except:
-        # Если картинка не загружается, отправляем просто текст
-        bot.send_message(
-            message.chat.id,
-            text,
-            parse_mode="HTML",
-            reply_markup=kb
-        )
-
-@bot.callback_query_handler(func=lambda c: c.data.startswith("new_year_claim_"))
-def claim_new_year_gift(call):
-    """Обработка получения подарка"""
-    try:
-        user_id = int(call.data.split("_")[3])
-        
-        # Проверяем, что нажимает владелец
-        if call.from_user.id != user_id:
-            bot.answer_callback_query(call.id, "🎅 Это не твой календарь!", show_alert=True)
-            return
-        
-        # Проверяем, можно ли получить подарок
-        if not can_claim_daily_gift(user_id):
-            bot.answer_callback_query(call.id, "❄️ Ты уже получал подарок сегодня!", show_alert=True)
-            return
-        
-        # Получаем случайный подарок
-        prize = get_random_prize(user_id)
-        username = call.from_user.username or call.from_user.first_name
-        
-        # Выдаем подарок
-        prize_description = give_prize_to_user(user_id, prize)
-        
-        # Обновляем данные в календаре
-        update_user_new_year_data(user_id, username, prize)
-        
-        # Формируем красивый ответ
-        mention = f'<a href="tg://user?id={user_id}">{call.from_user.first_name}</a>'
-        
-        # Создаем красивую анимацию с задержкой
-        bot.answer_callback_query(call.id, "🎄 Ищем подарок...")
-        time.sleep(1)
-        
-        # Первое обновление
-        bot.edit_message_caption(
-            chat_id=call.message.chat.id,
-            message_id=call.message.message_id,
-            caption=f"🎄✨ {mention}, Дед Мороз ищет для тебя подарок... ⛄",
-            parse_mode="HTML",
-            reply_markup=None
-        )
-        time.sleep(1)
-        
-        # Второе обновление
-        bot.edit_message_caption(
-            chat_id=call.message.chat.id,
-            message_id=call.message.message_id,
-            caption=f"🎁✨ {mention}, заглядываем в мешок с подарками... 🎅",
-            parse_mode="HTML",
-            reply_markup=None
-        )
-        time.sleep(1)
-        
-        # Финальное сообщение с результатом
-        final_text = (
-            f"🎉✨ <b>НОВОГОДНИЙ СЮРПРИЗ!</b> ✨🎉\n\n"
-            f"🎅 Дорогой {mention},\n"
-            f"Дед Мороз приготовил для тебя особый подарок!\n\n"
-            f"🎁 <b>Ты получил(а):</b>\n"
-            f"{prize_description}\n\n"
-            f"❄️ <i>Возвращайся завтра за новым подарком!</i>\n\n"
-            f"📅 Всего получено подарков: <b>{get_user_new_year_data(user_id)['total_claimed']}</b>"
-        )
-        
-        # Обновляем клавиатуру
-        kb = InlineKeyboardMarkup()
-        kb.add(
-            InlineKeyboardButton("🎁 Ещё подарки завтра", callback_data=f"new_year_tomorrow_{user_id}"),
-            InlineKeyboardButton("📜 Мои подарки", callback_data=f"new_year_prizes_{user_id}")
-        )
-        kb.add(InlineKeyboardButton("🎄 В календарь", callback_data=f"new_year_calendar_{user_id}"))
-        
-        bot.edit_message_caption(
-            chat_id=call.message.chat.id,
-            message_id=call.message.message_id,
-            caption=final_text,
-            parse_mode="HTML",
-            reply_markup=kb
-        )
-        
-    except Exception as e:
-        logger.error(f"Ошибка выдачи новогоднего подарка: {e}")
-        bot.answer_callback_query(call.id, "❌ Ошибка при получении подарка!", show_alert=True)
-
-@bot.callback_query_handler(func=lambda c: c.data.startswith("new_year_prizes_"))
-def show_user_prizes(call):
-    """Показывает историю полученных подарков"""
-    try:
-        user_id = int(call.data.split("_")[3])
-        
-        if call.from_user.id != user_id:
-            bot.answer_callback_query(call.id, "🎅 Это не твои подарки!", show_alert=True)
-            return
-        
-        calendar_data = get_user_new_year_data(user_id)
-        prizes = calendar_data["prizes_won"]
-        mention = f'<a href="tg://user?id={user_id}">{call.from_user.first_name}</a>'
-        
-        if not prizes:
-            text = (
-                f"📜 <b>ИСТОРИЯ ПОДАРКОВ</b>\n\n"
-                f"{mention}, ты ещё не получал подарков из новогоднего календаря.\n\n"
-                f"🎁 Нажми на кнопку «Получить подарок» в календаре, чтобы получить свой первый подарок!"
-            )
-        else:
-            # Показываем последние 10 подарков
-            recent_prizes = prizes[-10:]  # Последние 10 подарков
-            recent_prizes.reverse()  # Новые сверху
-            
-            text = f"📜 <b>ПОСЛЕДНИЕ ПОДАРКИ {mention}</b>\n\n"
-            
-            for i, prize_data in enumerate(recent_prizes, 1):
-                prize_date = datetime.fromisoformat(prize_data["date"]).strftime("%d.%m.%Y")
-                prize = prize_data["prize"]
-                
-                # Форматируем описание подарка
-                if prize["type"] == "money":
-                    prize_desc = f"💰 {prize['name']}: {format_number(prize['amount'])}$"
-                elif prize["type"] == "pet":
-                    prize_desc = f"🐾 Питомец: {prize['name']}"
-                elif prize["type"] == "vip":
-                    prize_desc = f"👑 VIP {prize['name']}: {prize['days']} дней"
-                elif prize["type"] == "car":
-                    prize_desc = f"🚗 Машина: {prize['name']}"
-                elif prize["type"] == "prefix":
-                    prize_desc = f"🔰 Префикс: {prize['name']}"
-                else:
-                    prize_desc = f"🎁 {prize.get('name', 'Подарок')}"
-                
-                text += f"{i}. <b>{prize_date}</b> — {prize_desc}\n"
-            
-            text += f"\n📊 Всего подарков: <b>{len(prizes)}</b>"
-        
-        kb = InlineKeyboardMarkup()
-        kb.add(InlineKeyboardButton("🔙 В календарь", callback_data=f"new_year_calendar_{user_id}"))
-        
-        bot.edit_message_caption(
-            chat_id=call.message.chat.id,
-            message_id=call.message.message_id,
-            caption=text,
-            parse_mode="HTML",
-            reply_markup=kb
-        )
-        
-        bot.answer_callback_query(call.id)
-        
-    except Exception as e:
-        logger.error(f"Ошибка показа подарков: {e}")
-        bot.answer_callback_query(call.id, "❌ Ошибка!", show_alert=True)
-
-@bot.callback_query_handler(func=lambda c: c.data.startswith("new_year_calendar_"))
-def back_to_calendar(call):
-    """Возврат к календарю"""
-    try:
-        user_id = int(call.data.split("_")[3])
-        
-        if call.from_user.id != user_id:
-            bot.answer_callback_query(call.id, "🎅 Это не твой календарь!", show_alert=True)
-            return
-        
-        # Создаем фейковое сообщение
-        class FakeMessage:
-            def __init__(self, chat_id, from_user):
-                self.chat = type('Chat', (), {'id': chat_id})()
-                self.from_user = from_user
-        
-        fake_msg = FakeMessage(call.message.chat.id, call.from_user)
-        new_year_calendar(fake_msg)
-        
-        # Удаляем старое сообщение
-        try:
-            bot.delete_message(call.message.chat.id, call.message.message_id)
-        except:
-            pass
-        
-        bot.answer_callback_query(call.id)
-        
-    except Exception as e:
-        logger.error(f"Ошибка возврата в календарь: {e}")
-        bot.answer_callback_query(call.id, "❌ Ошибка!", show_alert=True)
-
-@bot.callback_query_handler(func=lambda c: c.data.startswith("new_year_tomorrow_"))
-def tomorrow_gift(call):
-    """Информация о подарке на завтра"""
-    try:
-        user_id = int(call.data.split("_")[3])
-        
-        if call.from_user.id != user_id:
-            bot.answer_callback_query(call.id, "🎅 Это не твой календарь!", show_alert=True)
-            return
-        
-        mention = f'<a href="tg://user?id={user_id}">{call.from_user.first_name}</a>'
-        
-        # Случайный предсказатель подарка на завтра
-        tomorrow_gifts = [
-            "возможно, это будут горы золотых монет! 💰",
-            "может быть, тебя ждёт роскошный автомобиль! 🚗",
-            "вероятно, это будет милый питомец! 🐾",
-            "скорее всего, это будет VIP-статус! 👑",
-            "возможно, это будет особый новогодний префикс! 🔰",
-            "может быть, это будет огромный денежный приз! 🎁",
-            "вероятно, тебя ждёт сюрприз от Деда Мороза! 🎅"
-        ]
-        
-        text = (
-            f"🔮✨ <b>ПРЕДСКАЗАНИЕ НА ЗАВТРА</b> ✨🔮\n\n"
-            f"❄️ Дорогой {mention},\n\n"
-            f"Заглянув в магический шар, я вижу...\n\n"
-            f"🎁 <b>Завтра тебя ждёт:</b>\n"
-            f"<i>{random.choice(tomorrow_gifts)}</i>\n\n"
-            f"🎄 Не забудь заглянуть в календарь завтра, чтобы узнать, сбудется ли предсказание!"
-        )
-        
-        kb = InlineKeyboardMarkup()
-        kb.add(InlineKeyboardButton("🎄 В календарь", callback_data=f"new_year_calendar_{user_id}"))
-        
-        bot.edit_message_caption(
-            chat_id=call.message.chat.id,
-            message_id=call.message.message_id,
-            caption=text,
-            parse_mode="HTML",
-            reply_markup=kb
-        )
-        
-        bot.answer_callback_query(call.id)
-        
-    except Exception as e:
-        logger.error(f"Ошибка предсказания: {e}")
-        bot.answer_callback_query(call.id, "❌ Ошибка!", show_alert=True)
-
-@bot.callback_query_handler(func=lambda c: c.data == "new_year_already_claimed")
-def already_claimed_today(call):
-    """Уведомление, что подарок уже получен"""
-    bot.answer_callback_query(call.id, "❄️ Ты уже получал подарок сегодня! Возвращайся завтра! 🎄", show_alert=True)
-
-print("✅ Новогодний календарь загружен и готов к работе! 🎄")
+  
 
 
 # ================== СИСТЕМА СБОРА МУСОРА С АВТО-СБОРОКОЙ ==================
@@ -6651,805 +6094,7 @@ def marriages_list(message):
             "Произошла ошибка при загрузке списка браков. Пожалуйста, попробуйте позже."
         )
 
-# ================== НОВОГОДНЯЯ ИГРА СО СНЕЖКАМИ (ПОЛНАЯ ВЕРСИЯ) ==================
-SNOWBALLS_DB = "snowballs.db"
 
-# -------------------------------------------------------------
-#   ИНИЦИАЛИЗАЦИЯ БАЗЫ ДАННЫХ
-# -------------------------------------------------------------
-def init_snowballs_db():
-    conn = sqlite3.connect(SNOWBALLS_DB)
-    c = conn.cursor()
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS snowballs (
-            user_id INTEGER PRIMARY KEY,
-            username TEXT,
-            snowballs_count INTEGER DEFAULT 0,
-            golden_snowballs INTEGER DEFAULT 0,
-            level INTEGER DEFAULT 1,
-            xp INTEGER DEFAULT 0,
-            last_snowball_time TEXT,
-            daily_claimed TEXT
-        )
-    """)
-    conn.commit()
-    conn.close()
-
-init_snowballs_db()
-
-# -------------------------------------------------------------
-#   КОНФИГУРАЦИЯ СНЕЖКОВ
-# -------------------------------------------------------------
-SNOWBALL_CONFIG = {
-    "cooldown": 2,
-    "exchange_rate": 50,
-    "golden_chance": 0.05,
-    "golden_multiplier": 5,
-    "xp_per_snowball": 10,
-    "levels": {
-        1: 0, 2: 100, 3: 250, 4: 500, 5: 1000,
-        6: 2000, 7: 4000, 8: 8000, 9: 15000, 10: 30000
-    },
-    "daily_reward": 10
-}
-
-# -------------------------------------------------------------
-#   РАБОТА С ДАННЫМИ ПОЛЬЗОВАТЕЛЯ
-# -------------------------------------------------------------
-def get_user_snowballs(user_id):
-    conn = sqlite3.connect(SNOWBALLS_DB)
-    c = conn.cursor()
-    c.execute("SELECT snowballs_count, golden_snowballs, level, xp, last_snowball_time, daily_claimed FROM snowballs WHERE user_id = ?", (user_id,))
-    result = c.fetchone()
-    conn.close()
-
-    if result:
-        return {
-            "snowballs_count": result[0],
-            "golden_snowballs": result[1],
-            "level": result[2],
-            "xp": result[3],
-            "last_snowball_time": result[4],
-            "daily_claimed": result[5]
-        }
-
-    conn = sqlite3.connect(SNOWBALLS_DB)
-    c = conn.cursor()
-    c.execute("INSERT INTO snowballs (user_id, username, snowballs_count, golden_snowballs, level, xp) VALUES (?, ?, ?, ?, ?, ?)", 
-              (user_id, "", 0, 0, 1, 0))
-    conn.commit()
-    conn.close()
-
-    return {"snowballs_count": 0, "golden_snowballs": 0, "level": 1, "xp": 0, "last_snowball_time": None, "daily_claimed": None}
-
-
-def update_user_snowballs(user_id, username, snowballs_count, golden_snowballs, level, xp, last_time, daily_claimed):
-    conn = sqlite3.connect(SNOWBALLS_DB)
-    c = conn.cursor()
-    c.execute("""
-        INSERT OR REPLACE INTO snowballs 
-        (user_id, username, snowballs_count, golden_snowballs, level, xp, last_snowball_time, daily_claimed)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    """, (user_id, username, snowballs_count, golden_snowballs, level, xp, last_time, daily_claimed))
-    conn.commit()
-    conn.close()
-
-
-def get_snowballs_top(limit=10):
-    conn = sqlite3.connect(SNOWBALLS_DB)
-    c = conn.cursor()
-    c.execute("""
-        SELECT user_id, username, snowballs_count, golden_snowballs, level
-        FROM snowballs
-        WHERE snowballs_count > 0 OR golden_snowballs > 0
-        ORDER BY (snowballs_count + golden_snowballs * 5) DESC, level DESC
-        LIMIT ?
-    """, (limit,))
-    rows = c.fetchall()
-    conn.close()
-    return rows
-
-# -------------------------------------------------------------
-#   СИСТЕМА УРОВНЕЙ
-# -------------------------------------------------------------
-def calculate_level(xp):
-    levels = SNOWBALL_CONFIG["levels"]
-    current_level = 1
-    for level, required_xp in levels.items():
-        if xp >= required_xp:
-            current_level = level
-        else:
-            break
-    return current_level
-
-def get_level_progress(xp, level):
-    levels = SNOWBALL_CONFIG["levels"]
-    current_level_xp = levels[level]
-    next_level_xp = levels.get(level + 1, current_level_xp)
-    progress = ((xp - current_level_xp) / (next_level_xp - current_level_xp)) * 100 if next_level_xp > current_level_xp else 100
-    return min(progress, 100)
-
-def add_xp(user_id, xp_amount):
-    user_data = get_user_snowballs(user_id)
-    new_xp = user_data["xp"] + xp_amount
-    old_level = user_data["level"]
-    new_level = calculate_level(new_xp)
-    
-    update_user_snowballs(
-        user_id, 
-        "", 
-        user_data["snowballs_count"],
-        user_data["golden_snowballs"],
-        new_level,
-        new_xp,
-        user_data["last_snowball_time"],
-        user_data["daily_claimed"]
-    )
-    
-    return old_level != new_level, new_level
-
-# -------------------------------------------------------------
-#   ЛЕПКА СНЕЖКОВ
-# -------------------------------------------------------------
-@bot.message_handler(func=lambda m: m.text and m.text.lower() in ["слепить снежок", "снежок", "снежки"])
-def make_snowball(message):
-    try:
-        user_id = message.from_user.id
-        username = message.from_user.username or ""
-        first_name = message.from_user.first_name
-        mention = f'<a href="tg://user?id={user_id}">{first_name}</a>'
-
-        user_data = get_user_snowballs(user_id)
-        now = datetime.now()
-
-        # cooldown
-        if user_data["last_snowball_time"]:
-            last_time = datetime.fromisoformat(user_data["last_snowball_time"])
-            if (now - last_time).total_seconds() < SNOWBALL_CONFIG["cooldown"]:
-                time_left = SNOWBALL_CONFIG["cooldown"] - int((now - last_time).total_seconds())
-                bot.send_message(
-                    message.chat.id,
-                    f"⏰ {mention}, подожди еще {time_left} сек!",
-                    parse_mode="HTML"
-                )
-                return
-
-        # тип снежка
-        is_golden = random.random() < SNOWBALL_CONFIG["golden_chance"]
-        
-        # Обновляем счетчики снежков
-        if is_golden:
-            user_data["golden_snowballs"] += 1
-            snowball_text = "🌟 <b>ЗОЛОТОЙ СНЕЖОК!</b>"
-            emoji = "🌟"
-        else:
-            user_data["snowballs_count"] += 1
-            snowball_text = "❄️ Обычный снежок"
-            emoji = "❄️"
-
-        # Добавляем XP и получаем информацию о повышении уровня
-        level_up, new_level = add_xp(user_id, SNOWBALL_CONFIG["xp_per_snowball"])
-        
-        # После add_xp нужно получить актуальные данные, включая новый уровень
-        updated_data = get_user_snowballs(user_id)
-        
-        # Сохраняем изменения в снежках (уже учтенные в user_data)
-        user_data["last_snowball_time"] = now.isoformat()
-
-        # Обновляем данные в базе с учетом всех изменений
-        update_user_snowballs(
-            user_id, username,
-            user_data["snowballs_count"],  # Используем обновленные счетчики
-            user_data["golden_snowballs"],
-            updated_data["level"],  # Берем актуальный уровень из updated_data
-            updated_data["xp"],     # Берем актуальный XP из updated_data
-            user_data["last_snowball_time"],
-            user_data["daily_claimed"]
-        )
-
-        # Для отображения используем данные из updated_data
-        text = (
-            f"{emoji} {mention}, {snowball_text}\n\n"
-            f"📦 Всего снежков: <b>{user_data['snowballs_count']}</b>\n"
-            f"🌟 Золотых: <b>{user_data['golden_snowballs']}</b>\n"
-            f"⭐ XP: +{SNOWBALL_CONFIG['xp_per_snowball']}\n"
-            f"🎯 Уровень: <b>{updated_data['level']}</b>"
-        )
-
-        if level_up:
-            text += f"\n\n🎉 <b>Новый уровень: {new_level}!</b> 🎉"
-
-        bot.send_message(message.chat.id, text, parse_mode="HTML")
-
-    except Exception as e:
-        logger.error(f"Snowball error: {e}")
-
-# -------------------------------------------------------------
-#   ЕЖЕДНЕВНАЯ НАГРАДА
-# -------------------------------------------------------------
-@bot.message_handler(func=lambda m: m.text and m.text.lower() in ["ежедневный", "ежедневный снежок", "снежок день"])
-def daily_snowball(message):
-    try:
-        user_id = message.from_user.id
-        username = message.from_user.username or ""
-        first_name = message.from_user.first_name
-        mention = f'<a href="tg://user?id={user_id}">{first_name}</a>'
-
-        data = get_user_snowballs(user_id)
-        today = date.today().isoformat()
-
-        if data["daily_claimed"] == today:
-            return bot.send_message(
-                message.chat.id,
-                f"🎁 {mention}, ты уже получал ежедневку сегодня!",
-                parse_mode="HTML"
-            )
-
-        data["snowballs_count"] += SNOWBALL_CONFIG["daily_reward"]
-        data["daily_claimed"] = today
-
-        level_up, new_level = add_xp(user_id, SNOWBALL_CONFIG["xp_per_snowball"] * 2)
-
-        data = get_user_snowballs(user_id)
-
-        update_user_snowballs(
-            user_id, username,
-            data["snowballs_count"],
-            data["golden_snowballs"],
-            data["level"],
-            data["xp"],
-            data["last_snowball_time"],
-            data["daily_claimed"]
-        )
-
-        text = (
-            f"🎁 {mention}, ты получил ежедневный подарок!\n\n"
-            f"❄️ +{SNOWBALL_CONFIG['daily_reward']} снежков\n"
-            f"⭐ +{SNOWBALL_CONFIG['xp_per_snowball']*2} XP\n"
-            f"📦 Всего: <b>{data['snowballs_count']}</b>\n"
-            f"🎯 Уровень: <b>{data['level']}</b>"
-        )
-
-        if level_up:
-            text += f"\n\n🎉 <b>Новый уровень: {new_level}!</b> 🎉"
-
-        bot.send_message(message.chat.id, text, parse_mode="HTML")
-
-    except Exception as e:
-        logger.error(f"Daily snowball error: {e}")
-
-# -------------------------------------------------------------
-#   ПРОФИЛЬ
-# -------------------------------------------------------------
-@bot.message_handler(func=lambda m: m.text and m.text.lower() in ["мой профиль", "профиль", "снежный профиль"])
-def snowball_profile(message):
-    try:
-        user_id = message.from_user.id
-        name = message.from_user.first_name
-        mention = f'<a href="tg://user?id={user_id}">{name}</a>'
-
-        data = get_user_snowballs(user_id)
-        progress = get_level_progress(data["xp"], data["level"])
-
-        rank = (
-            "Новичок" if data["level"] < 3 else
-            "Снежный боец" if data["level"] < 6 else
-            "Мастер снежков" if data["level"] < 9 else
-            "Снежный король"
-        )
-
-        text = (
-            "🎄 <b>ТВОЙ ПРОФИЛЬ (ОЗНАКОМ.)</b> 🎄\n\n"
-            f"👤 Ник: {mention}\n"
-            f"🎖️ Звание: {rank}\n"
-            f"🎯 Уровень: {data['level']}\n"
-            f"📊 Прогресс: {progress:.1f}%\n\n"
-            f"❄️ Обычных: <code>{data['snowballs_count']}</code>\n"
-            f"🌟 Золотых: <code>{data['golden_snowballs']}</code>\n"
-            f"⭐ Опыт: {data['xp']} XP\n\n"
-            f"💱 1 снежок = {SNOWBALL_CONFIG['exchange_rate']}$\n"
-            f"💱 1 золотой = {SNOWBALL_CONFIG['exchange_rate'] * SNOWBALL_CONFIG['golden_multiplier']}$"
-        )
-
-        kb = InlineKeyboardMarkup(row_width=2)
-        kb.add(
-            InlineKeyboardButton("ТОП", callback_data=f"snow_top_{user_id}_1"),
-            InlineKeyboardButton("Обменять", callback_data=f"snow_exchange_{user_id}")
-        )
-        kb.add(
-            InlineKeyboardButton(" Ежедневный приз", callback_data=f"snow_daily_{user_id}"),
-            InlineKeyboardButton(" Статистика", callback_data=f"snow_stats_{user_id}")
-        )
-
-        bot.send_message(message.chat.id, text, parse_mode="HTML", reply_markup=kb)
-
-    except Exception as e:
-        logger.error("Profile error:", e)
-
-# -------------------------------------------------------------
-#   СТАТИСТИКА
-# -------------------------------------------------------------
-@bot.callback_query_handler(func=lambda c: c.data.startswith("snow_stats_"))
-def show_stats(call):
-    try:
-        user_id = int(call.data.split("_")[2])
-
-        if call.from_user.id != user_id:
-            return bot.answer_callback_query(call.id, "❌ Не твоя кнопка!", True)
-
-        data = get_user_snowballs(user_id)
-        total = data["snowballs_count"] + data["golden_snowballs"]
-
-        total_value = (
-            data["snowballs_count"] * SNOWBALL_CONFIG["exchange_rate"] +
-            data["golden_snowballs"] * SNOWBALL_CONFIG["exchange_rate"] * SNOWBALL_CONFIG["golden_multiplier"]
-        )
-
-        top = get_snowballs_top(1000)
-        pos = None
-        for i, (uid, *_ ) in enumerate(top, 1):
-            if uid == user_id:
-                pos = i
-                break
-
-        text = (
-            "📊 <b>СТАТИСТИКА</b>\n\n"
-            f"❄️ Всего: {total}\n"
-            f"📦 Обычных: {data['snowballs_count']}\n"
-            f"🌟 Золотых: {data['golden_snowballs']}\n"
-            f"💰 Стоимость: {total_value}$\n\n"
-            f"🎯 Уровень: {data['level']}\n"
-            f"⭐ Опыт: {data['xp']} XP\n"
-        )
-
-        if pos:
-            text += f"🏆 Место в топе: #{pos}"
-
-        kb = InlineKeyboardMarkup()
-        kb.add(InlineKeyboardButton(" Назад", callback_data=f"snow_profile_{user_id}"))
-
-        bot.edit_message_text(
-            text, call.message.chat.id, call.message.message_id,
-            parse_mode="HTML", reply_markup=kb
-        )
-        bot.answer_callback_query(call.id)
-
-    except:
-        bot.answer_callback_query(call.id, "❌ Ошибка!", True)
-
-# -------------------------------------------------------------
-#   ТОП
-# -------------------------------------------------------------
-def show_snowball_top_page(chat_id, message_id, viewer_id, page=1):
-    try:
-        top = get_snowballs_top(100)
-        per_page = 10
-        pages = (len(top) + per_page - 1) // per_page
-
-        page = max(1, min(page, pages))
-        start = (page - 1) * per_page
-        end = start + per_page
-
-        text = f"🎅 <b>ТОП ИГРОКОВ</b>\nСтраница {page}/{pages}\n\n"
-
-        for i, (uid, _, count, golden, level) in enumerate(top[start:end], start + 1):
-            try:
-                name = bot.get_chat(uid).first_name
-                mention = f'<a href="tg://user?id={uid}">{name}</a>'
-            except:
-                mention = f"User {uid}"
-
-            medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else f"{i}."
-            text += f"{medal} {mention}\n"
-            text += f"   ❄️ {count} | 🌟 {golden} | 🎯 {level}\n\n"
-
-        kb = InlineKeyboardMarkup()
-
-        row = []
-        if page > 1:
-            row.append(InlineKeyboardButton("<", callback_data=f"snow_top_{viewer_id}_{page-1}"))
-        row.append(InlineKeyboardButton(f"{page}/{pages}", callback_data="nope"))
-        if page < pages:
-            row.append(InlineKeyboardButton(">", callback_data=f"snow_top_{viewer_id}_{page+1}"))
-
-        kb.row(*row)
-        kb.add(InlineKeyboardButton(" Назад", callback_data=f"snow_profile_{viewer_id}"))
-
-        bot.edit_message_text(
-            text, chat_id, message_id,
-            parse_mode="HTML", reply_markup=kb
-        )
-
-    except Exception as e:
-        logger.error("Top error:", e)
-
-# -------------------------------------------------------------
-#   МЕНЮ ОБМЕНА
-# -------------------------------------------------------------
-@bot.callback_query_handler(func=lambda c: c.data.startswith("snow_exchange_") and not any(x in c.data for x in ["normal", "golden", "all"]))
-def exchange_menu(call):
-    try:
-        user_id = int(call.data.split("_")[2])
-
-        if call.from_user.id != user_id:
-            return bot.answer_callback_query(call.id, "❌ Не твоя кнопка!", True)
-
-        data = get_user_snowballs(user_id)
-
-        if data["snowballs_count"] == 0 and data["golden_snowballs"] == 0:
-            return bot.answer_callback_query(call.id, "❌ Нет снежков!", True)
-
-        total_value = (
-            data["snowballs_count"] * SNOWBALL_CONFIG["exchange_rate"] +
-            data["golden_snowballs"] * SNOWBALL_CONFIG["exchange_rate"] * SNOWBALL_CONFIG["golden_multiplier"]
-        )
-
-        name = call.from_user.first_name
-        mention = f'<a href="tg://user?id={user_id}">{name}</a>'
-
-        text = (
-            f"💎 <b>ОБМЕН СНЕЖКОВ</b>\n\n"
-            f"{mention}\n\n"
-            f"❄️ Обычных: {data['snowballs_count']}\n"
-            f"🌟 Золотых: {data['golden_snowballs']}\n\n"
-            f"💰 К получению: {total_value}$"
-        )
-
-        kb = InlineKeyboardMarkup(row_width=2)
-        
-        if data["snowballs_count"] > 0:
-            kb.add(InlineKeyboardButton(f" Обычные", callback_data=f"snow_exchange_normal_{user_id}"))
-        
-        if data["golden_snowballs"] > 0:
-            kb.add(InlineKeyboardButton(f" Золотые", callback_data=f"snow_exchange_golden_{user_id}"))
-        
-        if data["snowballs_count"] > 0 or data["golden_snowballs"] > 0:
-            kb.add(InlineKeyboardButton("Все", callback_data=f"snow_exchange_all_{user_id}"))
-
-        kb.add(InlineKeyboardButton(" Назад", callback_data=f"snow_profile_{user_id}"))
-
-        bot.edit_message_text(
-            text, call.message.chat.id, call.message.message_id,
-            parse_mode="HTML", reply_markup=kb
-        )
-
-    except Exception as e:
-        logger.error("Exchange menu error:", e)
-
-# -------------------------------------------------------------
-#   ПОДТВЕРЖДЕНИЕ ОБМЕНА
-# -------------------------------------------------------------
-@bot.callback_query_handler(func=lambda c: c.data.startswith("snow_exchange_") and any(x in c.data for x in ["normal", "golden", "all"]))
-def handle_exchange_type(call):
-    try:
-        _, _, action, user_id = call.data.split("_")
-        user_id = int(user_id)
-
-        if call.from_user.id != user_id:
-            return bot.answer_callback_query(call.id, "❌ Это не твоя кнопка!", True)
-
-        data = get_user_snowballs(user_id)
-
-        if action == "normal":
-            if data["snowballs_count"] == 0:
-                return bot.answer_callback_query(call.id, "❌ Нет обычных снежков!", True)
-            amount = data["snowballs_count"]
-            money = amount * SNOWBALL_CONFIG["exchange_rate"]
-            callback = f"snow_confirm_normal_{user_id}"
-            text = f"❄️ Обменять {amount} снежков за {money}$?"
-
-        elif action == "golden":
-            if data["golden_snowballs"] == 0:
-                return bot.answer_callback_query(call.id, "❌ Нет золотых!", True)
-            amount = data["golden_snowballs"]
-            money = amount * SNOWBALL_CONFIG["exchange_rate"] * SNOWBALL_CONFIG["golden_multiplier"]
-            callback = f"snow_confirm_golden_{user_id}"
-            text = f"🌟 Обменять {amount} золотых за {money}$?"
-
-        else:
-            normal = data["snowballs_count"] * SNOWBALL_CONFIG["exchange_rate"]
-            golden = data["golden_snowballs"] * SNOWBALL_CONFIG["exchange_rate"] * SNOWBALL_CONFIG["golden_multiplier"]
-            money = normal + golden
-            callback = f"snow_confirm_all_{user_id}"
-            text = f"💎 Обменять ВСЕ снежки за {money}$?"
-
-        kb = InlineKeyboardMarkup(row_width=2)
-        kb.add(
-            InlineKeyboardButton("✅ ", callback_data=callback),
-            InlineKeyboardButton("❌ ", callback_data=f"snow_exchange_{user_id}")
-        )
-
-        name = call.from_user.first_name
-        mention = f'<a href="tg://user?id={user_id}">{name}</a>'
-
-        bot.edit_message_text(
-            f"💎 <b>ПОДТВЕРЖДЕНИЕ</b>\n\n{mention}\n\n{text}",
-            call.message.chat.id, call.message.message_id,
-            parse_mode="HTML", reply_markup=kb
-        )
-
-    except Exception as e:
-        logger.error("Confirm exchange error:", e)
-
-# -------------------------------------------------------------
-#   ВЫПОЛНЕНИЕ ОБМЕНА
-# -------------------------------------------------------------
-@bot.callback_query_handler(func=lambda c: c.data.startswith("snow_confirm_"))
-def execute_exchange(call):
-    try:
-        parts = call.data.split("_")
-        action = parts[2]
-        user_id = int(parts[3])
-        
-        if call.from_user.id != user_id:
-            return bot.answer_callback_query(call.id, "❌ Это не твоя кнопка!", show_alert=True)
-
-        data = get_user_snowballs(user_id)
-        name = call.from_user.first_name
-        mention = f'<a href="tg://user?id={user_id}">{name}</a>'
-
-        money_earned = 0
-        snowballs_used = 0
-        golden_used = 0
-
-        if action == "normal" and data["snowballs_count"] > 0:
-            snowballs_used = data["snowballs_count"]
-            money_earned = snowballs_used * SNOWBALL_CONFIG["exchange_rate"]
-            data["snowballs_count"] = 0
-            
-        elif action == "golden" and data["golden_snowballs"] > 0:
-            golden_used = data["golden_snowballs"]
-            money_earned = golden_used * SNOWBALL_CONFIG["exchange_rate"] * SNOWBALL_CONFIG["golden_multiplier"]
-            data["golden_snowballs"] = 0
-            
-        elif action == "all":
-            snowballs_used = data["snowballs_count"]
-            golden_used = data["golden_snowballs"]
-            money_earned = (snowballs_used * SNOWBALL_CONFIG["exchange_rate"] + 
-                          golden_used * SNOWBALL_CONFIG["exchange_rate"] * SNOWBALL_CONFIG["golden_multiplier"])
-            data["snowballs_count"] = 0
-            data["golden_snowballs"] = 0
-
-        if money_earned > 0:
-            # Начисляем деньги в основную игру
-            user_game_data = get_user_data(user_id)
-            user_game_data["balance"] += money_earned
-            save_casino_data()
-
-            # Сохраняем обновленные данные снежков
-            update_user_snowballs(
-                user_id, 
-                call.from_user.username or "", 
-                data["snowballs_count"],
-                data["golden_snowballs"],
-                data["level"],
-                data["xp"],
-                data["last_snowball_time"],
-                data["daily_claimed"]
-            )
-
-            # Формируем сообщение об успехе
-            snowballs_text = ""
-            if snowballs_used > 0:
-                snowballs_text += f"❄️ Обычных: {snowballs_used}\n"
-            if golden_used > 0:
-                snowballs_text += f"🌟 Золотых: {golden_used}\n"
-
-            text = (
-                f"🎉 <b>ОБМЕН УСПЕШНО ВЫПОЛНЕН!</b> 🎉\n\n"
-                f"👤 {mention}\n\n"
-                f"{snowballs_text}\n"
-                f"💰 Получено: <b>{money_earned}$</b>\n\n"
-                f"💵 Новый баланс: <b>{user_game_data['balance']}$</b>"
-            )
-
-            kb = InlineKeyboardMarkup()
-            kb.add(InlineKeyboardButton("В профиль", callback_data=f"snow_profile_{user_id}"))
-
-            bot.edit_message_text(text, call.message.chat.id, call.message.message_id, parse_mode="HTML", reply_markup=kb)
-            bot.answer_callback_query(call.id, f"✅ +{money_earned}$")
-
-        else:
-            bot.answer_callback_query(call.id, "❌ Нечего обменивать!", show_alert=True)
-
-    except Exception as e:
-        logger.error(f"Exchange execution error: {e}")
-        bot.answer_callback_query(call.id, "❌ Ошибка при обмене!", show_alert=True)
-
-# -------------------------------------------------------------
-#   ЕЖЕДНЕВНАЯ НАГРАДА (CALLBACK)
-# -------------------------------------------------------------
-@bot.callback_query_handler(func=lambda c: c.data.startswith("snow_daily_"))
-def daily_callback(call):
-    try:
-        user_id = int(call.data.split("_")[2])
-        
-        if call.from_user.id != user_id:
-            return bot.answer_callback_query(call.id, "❌ Это не твоя кнопка!", show_alert=True)
-
-        # Повторяем логику ежедневной награды
-        username = call.from_user.username or ""
-        first_name = call.from_user.first_name
-        mention = f'<a href="tg://user?id={user_id}">{first_name}</a>'
-
-        user_data = get_user_snowballs(user_id)
-        today = date.today().isoformat()
-
-        if user_data["daily_claimed"] == today:
-            bot.answer_callback_query(call.id, "🎁 Ты уже получал награду сегодня!", show_alert=True)
-            return
-
-        # Выдаем награду
-        user_data["snowballs_count"] += SNOWBALL_CONFIG["daily_reward"]
-        user_data["daily_claimed"] = today
-        
-        # Добавляем опыт
-        level_up, new_level = add_xp(user_id, SNOWBALL_CONFIG["xp_per_snowball"] * 2)
-        
-        update_user_snowballs(
-            user_id, username, 
-            user_data["snowballs_count"],
-            user_data["golden_snowballs"],
-            user_data["level"],
-            user_data["xp"],
-            user_data["last_snowball_time"],
-            user_data["daily_claimed"]
-        )
-
-        message_text = (
-            f"🎁 {mention}, ты получил ежедневную награду!\n\n"
-            f"❄️ +{SNOWBALL_CONFIG['daily_reward']} снежков\n"
-            f"⭐ +{SNOWBALL_CONFIG['xp_per_snowball'] * 2} XP\n"
-            f"📦 Всего снежков: <b>{user_data['snowballs_count']}</b>\n"
-            f"🎯 Уровень: <b>{user_data['level']}</b>"
-        )
-        
-        if level_up:
-            message_text += f"\n\n🎉 <b>ПОЗДРАВЛЯЮ! Ты достиг {new_level} уровня!</b> 🎉"
-
-        kb = InlineKeyboardMarkup()
-        kb.add(InlineKeyboardButton("В профиль", callback_data=f"snow_profile_{user_id}"))
-
-        bot.edit_message_text(message_text, call.message.chat.id, call.message.message_id, parse_mode="HTML", reply_markup=kb)
-        bot.answer_callback_query(call.id)
-
-    except Exception as e:
-        logger.error(f"Daily callback error: {e}")
-        bot.answer_callback_query(call.id, "❌ Ошибка!", show_alert=True)
-
-# -------------------------------------------------------------
-#   ГЛАВНЫЙ CALLBACK ОБРАБОТЧИК
-# -------------------------------------------------------------
-@bot.callback_query_handler(func=lambda c: c.data.startswith("snow_"))
-def handle_snow_callbacks(call):
-    try:
-        parts = call.data.split("_")
-        action = parts[1]
-        
-        if action == "no_action":
-            bot.answer_callback_query(call.id)
-            return
-
-        user_id = int(parts[2])
-        
-        if call.from_user.id != user_id:
-            return bot.answer_callback_query(call.id, "🎅 Это не твоя кнопка!", show_alert=True)
-
-        # ---------- ТОП (С ПАГИНАЦИЕЙ) ----------
-        if action == "top":
-            page = int(parts[3]) if len(parts) > 3 else 1
-            show_snowball_top_page(call.message.chat.id, call.message.message_id, user_id, page)
-
-        # ---------- ПРОФИЛЬ ----------
-        elif action == "profile":
-            data = get_user_snowballs(user_id)
-            name = call.from_user.first_name
-            mention = f'<a href="tg://user?id={user_id}">{name}</a>'
-            progress = get_level_progress(data["xp"], data["level"])
-            rank = "Новичок" if data["level"] < 3 else "Снежный боец" if data["level"] < 6 else "Мастер снежков" if data["level"] < 9 else "Снежный король"
-
-            text = (
-                "🎄 <b>ТВОЙ ПРОФИЛЬ (ОЗНАКОМ.)</b> 🎄\n\n"
-                f"👤 <b>Ник:</b> {mention}\n"
-                f"🎖️ <b>Звание:</b> {rank}\n"
-                f"🎯 <b>Уровень:</b> {data['level']}\n"
-                f"📊 <b>Прогресс:</b> {progress:.1f}%\n\n"
-                f"❄️ <b>Обычных снежков:</b> <code>{data['snowballs_count']}</code>\n"
-                f"🌟 <b>Золотых снежков:</b> <code>{data['golden_snowballs']}</code>\n"
-                f"⭐ <b>Опыт:</b> {data['xp']} XP"
-            )
-
-            kb = InlineKeyboardMarkup(row_width=2)
-            kb.add(
-                InlineKeyboardButton("ТОП", callback_data=f"snow_top_{user_id}_1"),
-                InlineKeyboardButton(" Обменять", callback_data=f"snow_exchange_{user_id}")
-            )
-            kb.add(
-                InlineKeyboardButton(" Ежедневный приз", callback_data=f"snow_daily_{user_id}"),
-                InlineKeyboardButton(" Статистика", callback_data=f"snow_stats_{user_id}")
-            )
-
-            bot.edit_message_text(text, call.message.chat.id, call.message.message_id, parse_mode="HTML", reply_markup=kb)
-
-        bot.answer_callback_query(call.id)
-
-    except Exception as e:
-        logger.error(f"Snow callback error: {e}")
-        bot.answer_callback_query(call.id, "❌ Ошибка!", show_alert=True)
-
-# -------------------------------------------------------------
-#   КОМАНДА /TOP ДЛЯ СНЕЖКОВ
-# -------------------------------------------------------------
-@bot.message_handler(func=lambda m: m.text and m.text.lower() in ["топ снежков", "снежный топ"])
-def snow_top_command(message):
-    try:
-        user_id = message.from_user.id
-        show_snowball_top_page(message.chat.id, None, user_id, 1)
-    except Exception as e:
-        logger.error(f"Snow top command error: {e}")
-        bot.send_message(message.chat.id, "❌ Ошибка при загрузке топа!")
-
-print("✅ Снежки загружены и готовы к работе!")
-
-# ================== КОМАНДА "ЧС ЧАТА" ==================
-CHAT_ACCESS_BLOCK = {}  # словарь с заблокированными чатами
-
-@bot.message_handler(func=lambda m: m.text and m.text.lower() == "чс чата")
-def block_chat_access(message):
-    user = message.from_user
-    chat_id = message.chat.id
-    mention = f'<a href="tg://user?id={user.id}">{user.first_name}</a>'
-
-    # Проверка — админ ли пользователь
-    if user.id not in ADMIN_IDS:
-        bot.send_message(chat_id, f"{mention}\n\n<b>У тебя нет прав администратора в моей базе данных.</b>", parse_mode="HTML")
-        return
-
-    # Если уже в ЧС
-    if CHAT_ACCESS_BLOCK.get(chat_id):
-        bot.send_message(chat_id, f"{mention}\n\n<b>Этот чат уже находится в ЧС.</b>", parse_mode="HTML")
-        return
-
-    # Добавляем чат в ЧС
-    CHAT_ACCESS_BLOCK[chat_id] = True
-
-    kb = telebot.types.InlineKeyboardMarkup()
-    kb.add(telebot.types.InlineKeyboardButton("🗨️ Убрать ЧС", callback_data=f"unblock_chat_{chat_id}"))
-
-    bot.send_message(
-        chat_id,
-        f"{mention}\n\n<b>Ты убрал доступ к основным командам бота для всех пользователей в этом чате.</b>\n\n"
-        "<b>Обратно выдать можно ниже:</b>",
-        parse_mode="HTML",
-        reply_markup=kb
-    )
-
-
-@bot.callback_query_handler(func=lambda call: call.data.startswith("unblock_chat_"))
-def unblock_chat(call):
-    user = call.from_user
-    chat_id = call.message.chat.id
-    mention = f'<a href="tg://user?id={user.id}">{user.first_name}</a>'
-
-    # Проверяем, админ ли
-    if user.id not in ADMIN_IDS:
-        bot.answer_callback_query(call.id)
-        bot.send_message(chat_id, f"{mention}\n\n<b>Ты не администратор.</b>", parse_mode="HTML")
-        return
-
-    # Снимаем блокировку
-    CHAT_ACCESS_BLOCK[chat_id] = False
-
-    try:
-        bot.delete_message(chat_id, call.message.message_id)
-    except:
-        pass
-
-    bot.send_message(
-        chat_id,
-        f"<b>Администратор {mention} вернул доступ к боту для всех пользователей в этой группе.</b>",
-        parse_mode="HTML"
-    )
 
 
 # ================== БЛОКИРОВКА ПОЛЬЗОВАТЕЛЕЙ ==================
@@ -7739,11 +6384,7 @@ def bot_response(message):
     else:
         # Если команда отправлена просто так
         bot.send_message(message.chat.id, response, parse_mode="HTML")
-# ================== ГЛОБАЛЬНАЯ ПРОВЕРКА НА ЧС ==================
-@bot.message_handler(func=lambda m: CHAT_ACCESS_BLOCK.get(m.chat.id))
-def ignore_blocked_chat(message):
-    """Если чат в ЧС — бот вообще не реагирует ни на что"""
-    return
+
 
 
 
@@ -9054,22 +7695,25 @@ def hand_value(hand):
 def format_hand(hand, hide_second=False):
     if hide_second and len(hand) > 1:
         return f"{hand[0][0]}{hand[0][1]} ❓"
-    return " ".join(f"{r}{s}" for r, s in hand)
+    return " • ".join(f"{r}{s}" for r, s in hand)
 
 # ================== КЛАВИАТУРА ==================
-def bj_action_keyboard(user_id, game_id):
-    kb = InlineKeyboardMarkup(row_width=2)
-    kb.add(
-        InlineKeyboardButton("Взять", callback_data=f"bj_hit_{user_id}_{game_id}"),
-        InlineKeyboardButton("Оставить", callback_data=f"bj_stand_{user_id}_{game_id}")
-    )
-    kb.add(
-        InlineKeyboardButton("Сдаться", callback_data=f"bj_surrender_{user_id}_{game_id}")
-    )
+def bj_action_keyboard(user_id, game_id, can_double=True):
+    kb = InlineKeyboardMarkup(row_width=1)  # Вертикальное расположение
+    
+    # Каждую кнопку добавляем отдельно
+    kb.add(InlineKeyboardButton("🎯 Взять", callback_data=f"bj_hit_{user_id}_{game_id}"))
+    kb.add(InlineKeyboardButton("🛑 Оставить", callback_data=f"bj_stand_{user_id}_{game_id}"))
+    kb.add(InlineKeyboardButton("🏳️ Сдаться", callback_data=f"bj_surrender_{user_id}_{game_id}"))
+    
+    if can_double:
+        kb.add(InlineKeyboardButton("💹 Удвоить", callback_data=f"bj_double_{user_id}_{game_id}"))
+    
     return kb
 
 # ================== АКТИВНЫЕ ИГРЫ ==================
 active_blackjack_games = {}
+BLACKJACK_IMAGE_URL = "https://i.supaimg.com/d55f9fad-17e9-4723-8cd8-4258944b667f/fc07259f-695e-4d75-a365-2e76cca30464.png"
 
 # ================== СТАРТ ИГРЫ ==================
 def start_blackjack_game(user_data, user_id, bet):
@@ -9098,13 +7742,13 @@ def start_blackjack_game(user_data, user_id, bet):
         "start_time": time.time()
     }
 
-    # ✅ СПИСЫВАЕМ ОДИН РАЗ
+    # СПИСЫВАЕМ СТАВКУ
     user_data["balance"] -= bet
     save_casino_data()
 
     return game_id, "OK"
 
-# ================== СООБЩЕНИЕ ==================
+# ================== КРАСИВОЕ СООБЩЕНИЕ ==================
 def format_blackjack_message(game_id):
     game = active_blackjack_games[game_id]
     uid = game["user_id"]
@@ -9114,109 +7758,167 @@ def format_blackjack_message(game_id):
         name = user.first_name
     except:
         name = str(uid)
-
-    text = f"""
-<b>Мини - игра в BlackJack</b>
-{name}
-Ставка: {format_number(game['bet'])}$
-
-Дилер: {format_hand(game['dealer_hand'], game['status']=="playing")}
-Очки: {hand_value([game['dealer_hand'][0]]) if game['status']=="playing" else game['dealer_value']}
-
-Ты: {format_hand(game['player_hand'])}
-Очки: {game['player_value']}
-
-Статус:
-"""
-
-    status_map = {
-        "playing": "Твой ход",
-        "blackjack": "🎯 BLACKJACK!",
-        "bust": "💥 ПЕРЕБОР",
-        "win": "✅ ПОБЕДА",
-        "lose": "❌ ПОРАЖЕНИЕ",
-        "push": "🤝 НИЧЬЯ",
-        "surrender": "🏳️ СДАЧА"
+    
+    mention = f'<a href="tg://user?id={uid}">{name}</a>'
+    
+    # Символ масти для заголовка
+    suit_symbol = random.choice(["♣️", "♠️", "♥️", "♦️"])
+    
+    # Статус игры
+    status_emoji = {
+        "playing": "🎮",
+        "blackjack": "🎯",
+        "bust": "💥",
+        "win": "✅",
+        "lose": "❌",
+        "push": "🤝",
+        "surrender": "🏳️"
     }
-
-    text += status_map.get(game["status"], "")
-
-    if game["status"] in ["win", "blackjack"]:
-        mult = 2.5 if game["status"] == "blackjack" else 2
-        text += f"\n\n💰 Выигрыш: <code>{format_number(int(game['bet'] * mult))}$</code>"
-
-    if game["status"] == "push":
-        text += f"\n\n💰 Возврат: <code>{format_number(game['bet'])}$</code>"
-
-    if game["status"] == "surrender":
-        text += f"\n\n💰 Возврат: <code>{format_number(game['bet']//2)}$</code>"
+    
+    status_text = {
+        "playing": "Твой ход",
+        "blackjack": "BLACKJACK!",
+        "bust": "ПЕРЕБОР",
+        "win": "Ты победил!",
+        "lose": "Ты проиграл",
+        "push": "Ничья",
+        "surrender": "Сдача"
+    }
+    
+    emoji = status_emoji.get(game["status"], "🎮")
+    status = status_text.get(game["status"], "")
+    
+    # Формируем текст
+    text = f"{suit_symbol} <b>{mention}, {status}</b> {emoji}\n"
+    text += "·····················\n"
+    text += f"💶 Ставка: {format_number(game['bet'])} \n"
+    
+    # Выигрыш
+    if game["status"] == "win":
+        win_amount = game['bet'] * 2
+        text += f"📊 Выигрыш: {format_number(win_amount)}$\n"
+    elif game["status"] == "blackjack":
+        win_amount = int(game['bet'] * 2.5)
+        text += f"📊 Выигрыш: {format_number(win_amount)}$ 🎯\n"
+    elif game["status"] == "push":
+        text += f"📊 Возврат: {format_number(game['bet'])}$\n"
+    elif game["status"] == "surrender":
+        text += f"📊 Возврат: {format_number(game['bet']//2)}$\n"
+    else:
+        text += f"📊 Выигрыш: —\n"
+    
+    text += "\n"
+    
+    # Дилер
+    if game["status"] == "playing":
+        dealer_cards = format_hand(game['dealer_hand'], hide_second=True)
+        dealer_score = hand_value([game['dealer_hand'][0]])
+        text += f"🤵 <b>Дилер:</b>\n{dealer_cards} | {dealer_score}\n"
+    else:
+        dealer_cards = format_hand(game['dealer_hand'])
+        text += f"🤵 <b>Дилер:</b>\n{dealer_cards} | {game['dealer_value']}\n"
+    
+    text += "-----------------\n"
+    
+    # Игрок
+    text += f"🧑‍💻 <b>Ты:</b>\n{format_hand(game['player_hand'])} | {game['player_value']}\n"
+    
+    # Дополнительный текст о результате
+    if game["status"] == "win":
+        text += f"🎉 У тебя больше очков!"
+    elif game["status"] == "lose":
+        text += f"💔 У дилера больше очков"
+    elif game["status"] == "blackjack":
+        text += f"🔥 BLACKJACK! Ты собрал 21!"
+    elif game["status"] == "bust":
+        text += f"💥 Перебор! Ты набрал больше 21"
+    elif game["status"] == "push":
+        text += f"🤝 Одинаковое количество очков"
+    elif game["status"] == "surrender":
+        text += f"🏳️ Ты сдался и забрал половину ставки"
 
     return text
 
 # ================== CALLBACK ==================
 @bot.callback_query_handler(func=lambda call: call.data.startswith("bj_"))
 def handle_blackjack_action(call):
-    _, action, uid, gid = call.data.split("_")
-    uid = int(uid)
+    try:
+        _, action, uid, gid = call.data.split("_")
+        uid = int(uid)
 
-    if call.from_user.id != uid:
-        bot.answer_callback_query(call.id, "❌ Не твоя игра", show_alert=True)
-        return
+        if call.from_user.id != uid:
+            bot.answer_callback_query(call.id, "❌ Не твоя игра", show_alert=True)
+            return
 
-    game = active_blackjack_games.get(gid)
-    if not game or game["status"] != "playing":
-        bot.answer_callback_query(call.id, "❌ Игра окончена")
-        return
+        game = active_blackjack_games.get(gid)
+        if not game or game["status"] != "playing":
+            bot.answer_callback_query(call.id, "❌ Игра окончена")
+            return
 
-    user_data = get_user_data(uid)
+        user_data = get_user_data(uid)
+        can_double = len(game["player_hand"]) == 2 and user_data["balance"] >= game["bet"]
 
-    if action == "hit":
-        card = game["deck"].pop()
-        game["player_hand"].append(card)
-        game["player_value"] = hand_value(game["player_hand"])
+        if action == "hit":
+            card = game["deck"].pop()
+            game["player_hand"].append(card)
+            game["player_value"] = hand_value(game["player_hand"])
 
-        if game["player_value"] > 21:
-            game["status"] = "bust"
+            if game["player_value"] > 21:
+                game["status"] = "bust"
+                complete_blackjack_game(gid)
+            elif game["player_value"] == 21:
+                game["status"] = "blackjack"
+                user_data["balance"] += int(game["bet"] * 2.5)
+                save_casino_data()
+
+        elif action == "stand":
+            dealer_turn(gid)
             complete_blackjack_game(gid)
 
-        elif game["player_value"] == 21:
-            game["status"] = "blackjack"
-            user_data["balance"] += int(game["bet"] * 2.5)
+        elif action == "surrender":
+            game["status"] = "surrender"
+            user_data["balance"] += game["bet"] // 2
             save_casino_data()
 
-    elif action == "stand":
-        dealer_turn(gid)
-        complete_blackjack_game(gid)
+        elif action == "double":
+            if len(game["player_hand"]) != 2:
+                bot.answer_callback_query(call.id, "❌ Только на первых картах", show_alert=True)
+                return
+            if user_data["balance"] < game["bet"]:
+                bot.answer_callback_query(call.id, "❌ Недостаточно средств", show_alert=True)
+                return
 
-    elif action == "surrender":
-        game["status"] = "surrender"
-        user_data["balance"] += game["bet"] // 2
-        save_casino_data()
+            user_data["balance"] -= game["bet"]
+            game["bet"] *= 2
 
-    elif action == "double":
-        if len(game["player_hand"]) != 2:
-            bot.answer_callback_query(call.id, "❌ Только на первых картах", show_alert=True)
-            return
-        if user_data["balance"] < game["bet"]:
-            bot.answer_callback_query(call.id, "❌ Недостаточно средств", show_alert=True)
-            return
+            game["player_hand"].append(game["deck"].pop())
+            game["player_value"] = hand_value(game["player_hand"])
 
-        user_data["balance"] -= game["bet"]
-        game["bet"] *= 2
+            if game["player_value"] > 21:
+                game["status"] = "bust"
+            else:
+                dealer_turn(gid)
+                complete_blackjack_game(gid)
 
-        game["player_hand"].append(game["deck"].pop())
-        game["player_value"] = hand_value(game["player_hand"])
+        # Обновляем сообщение с ФОТО
+        can_double_after = len(game["player_hand"]) == 2 and user_data["balance"] >= game["bet"] and game["status"] == "playing"
+        
+        bot.edit_message_media(
+            media=types.InputMediaPhoto(
+                media=BLACKJACK_IMAGE_URL,
+                caption=format_blackjack_message(gid),
+                parse_mode="HTML"
+            ),
+            chat_id=call.message.chat.id,
+            message_id=call.message.message_id,
+            reply_markup=bj_action_keyboard(uid, gid, can_double_after) if game["status"] == "playing" else None
+        )
+        
+        bot.answer_callback_query(call.id)
 
-        dealer_turn(gid)
-        complete_blackjack_game(gid)
-
-    bot.edit_message_text(
-        format_blackjack_message(gid),
-        call.message.chat.id,
-        call.message.message_id,
-        parse_mode="HTML",
-        reply_markup=bj_action_keyboard(uid, gid) if game["status"] == "playing" else None
-    )
+    except Exception as e:
+        logger.error(f"Ошибка Blackjack: {e}")
+        bot.answer_callback_query(call.id, "❌ Ошибка!", show_alert=True)
 
 # ================== ДИЛЕР ==================
 def dealer_turn(game_id):
@@ -9248,16 +7950,15 @@ def complete_blackjack_game(game_id):
 
     save_casino_data()
 
-# ================== НОВАЯ КОМАНДА: ИГРАТЬ ==================
+# ================== КОМАНДА: ИГРАТЬ ==================
 @bot.message_handler(func=lambda m: m.text and m.text.lower().startswith("играть"))
 def play_blackjack_command(message):
     try:
         user_id = message.from_user.id
-        user_data = get_user_data(user_id)  # ОДИН РАЗ
+        user_data = get_user_data(user_id)
 
         parts = message.text.split()
 
-        # Если ставка не указана — показать помощь
         if len(parts) < 2:
             bot.send_message(
                 message.chat.id,
@@ -9273,7 +7974,6 @@ def play_blackjack_command(message):
             )
             return
 
-        # Парсим ставку
         try:
             bet = int(parts[1])
         except ValueError:
@@ -9285,7 +7985,6 @@ def play_blackjack_command(message):
             )
             return
 
-        # Минимальная ставка
         if bet < 100:
             bot.send_message(
                 message.chat.id,
@@ -9294,26 +7993,22 @@ def play_blackjack_command(message):
             )
             return
 
-        # ❗ НЕ проверяем баланс здесь
-        # ❗ НЕ списываем деньги здесь
-        # Всё это делает start_blackjack_game()
-
-        # ✅ ПРАВИЛЬНЫЙ ВЫЗОВ: передаем user_data и user_id
         game_id, result = start_blackjack_game(user_data, user_id, bet)
 
         if game_id is None:
             bot.send_message(message.chat.id, result, parse_mode="HTML")
             return
 
-        # Отправляем игру
+        # Отправляем игру с ФОТО
         text = format_blackjack_message(game_id)
-        kb = bj_action_keyboard(user_id, game_id)
-
-        bot.send_message(
+        can_double = user_data["balance"] >= bet
+        
+        bot.send_photo(
             message.chat.id,
-            text,
+            photo=BLACKJACK_IMAGE_URL,
+            caption=text,
             parse_mode="HTML",
-            reply_markup=kb
+            reply_markup=bj_action_keyboard(user_id, game_id, can_double)
         )
 
     except Exception as e:
@@ -9325,607 +8020,318 @@ def play_blackjack_command(message):
         )
 
 
-# ================== 🎡 РУЛЕТКА (СТАБИЛЬНАЯ ВЕРСИЯ) ==================
-import random
-import time
-import threading
-from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 
-# Глобальный словарь для активных игр
-ACTIVE_GAMES = {}
-GAME_TIMEOUT = 300  # 5 минут в секундах
-
-# Константы для игры
-ROULETTE_TYPES = {
-    "red": {"name": "🔴 Красное", "emoji": "🔴", "multiplier": 2},
-    "black": {"name": "⚫ Чёрное", "emoji": "⚫", "multiplier": 2},
-    "even": {"name": "🔢 Чётное", "emoji": "🔢", "multiplier": 2},
-    "odd": {"name": "🔣 Нечётное", "emoji": "🔣", "multiplier": 2},
-    "green": {"name": "🟢 Зелёное", "emoji": "🟢", "multiplier": 36}
-}
-
-def format_number(num):
-    """Форматирование чисел с разделителями"""
-    return f"{num:,}".replace(",", " ")
-
-def cleanup_old_games():
-    """Очистка старых игр - вызывается перед каждой операцией"""
-    global ACTIVE_GAMES
-    current_time = time.time()
-    games_to_remove = []
-    
-    for game_id, game_data in ACTIVE_GAMES.items():
-        game_age = current_time - game_data.get("start_time", 0)
-        if game_age > GAME_TIMEOUT:
-            games_to_remove.append(game_id)
-    
-    for game_id in games_to_remove:
-        try:
-            # Возвращаем средства только если игра была на стадии выбора
-            game_data = ACTIVE_GAMES[game_id]
-            if game_data.get("stage") == "choice":
-                user_id = game_data["user_id"]
-                user_data = get_user_data(user_id)
-                bet = game_data.get("bet", 0)
-                if bet > 0:
-                    user_data["balance"] += bet
-                    save_casino_data()
-        except:
-            pass
-        
-        del ACTIVE_GAMES[game_id]
-    
-    return len(games_to_remove)
-
-def get_roulette_keyboard():
-    """Возвращает клавиатуру для рулетки"""
-    keyboard = InlineKeyboardMarkup(row_width=3)
-    
-    keyboard.row(
-        InlineKeyboardButton("🔴 Красное", callback_data="roulette_red"),
-        InlineKeyboardButton("⚫ Чёрное", callback_data="roulette_black"),
-        InlineKeyboardButton("🟢 Зелёное", callback_data="roulette_green")
-    )
-    
-    keyboard.row(
-        InlineKeyboardButton("🔢 Чётное", callback_data="roulette_even"),
-        InlineKeyboardButton("🔣 Нечётное", callback_data="roulette_odd")
-    )
-    
-    return keyboard
-
-def spin_roulette():
-    """Крутит рулетку и возвращает результат"""
-    number = random.randint(0, 36)
-    
-    if number == 0:
-        color = "зеленое"
-    elif number % 2 == 0:
-        color = "черное"
-    else:
-        color = "красное"
-    
-    return number, color
-
-def check_win(choice, number, color):
-    """Проверяет, выиграл ли игрок"""
-    if choice == "green":
-        return number == 0
-    elif choice == "red":
-        return color == "красное" and number != 0
-    elif choice == "black":
-        return color == "черное" and number != 0
-    elif choice == "even":
-        return number % 2 == 0 and number != 0
-    elif choice == "odd":
-        return number % 2 == 1
-    return False
-
-@bot.message_handler(func=lambda m: m.text and m.text.lower().startswith(("рулетка ", "рулетка")))
-def handle_roulette_command(message):
-    """Обработчик команды /рулетка"""
-    try:
-        user_id = message.from_user.id
-        username = message.from_user.first_name
-        
-        # Очищаем старые игры ПЕРЕД началом
-        cleanup_old_games()
-        
-        # Получаем ставку из сообщения
-        command_parts = message.text.split()
-        if len(command_parts) < 2:
-            bot.send_message(
-                message.chat.id,
-                "🎰 <b>ИГРА В РУЛЕТКУ</b>\n\n"
-                "Используйте: <code>рулетка [ставка]</code>\n"
-                "Пример: <code>рулетка 1000</code>\n\n"
-                "Минимальная ставка: <b>100$</b>",
-                parse_mode="HTML"
-            )
-            return
-        
-        try:
-            bet = int(command_parts[1])
-        except ValueError:
-            bot.send_message(message.chat.id, "❌ Неверный формат ставки! Используйте числа.")
-            return
-        
-        # Проверка минимальной ставки
-        if bet < 100:
-            bot.send_message(message.chat.id, "❌ Минимальная ставка: 100$")
-            return
-        
-        # Проверка максимальной ставки
-        if bet > 100000000:
-            bot.send_message(message.chat.id, "❌ Максимальная ставка: 100.000.000$")
-            return
-        
-        # Проверка баланса
-        user_data = get_user_data(user_id)
-        if user_data["balance"] < bet:
-            bot.send_message(
-                message.chat.id,
-                f"❌ <b>НЕДОСТАТОЧНО СРЕДСТВ!</b>\n\n"
-                f"💰 Нужно: <b>{format_number(bet)}$</b>\n"
-                f"💳 У вас: <b>{format_number(user_data['balance'])}$</b>",
-                parse_mode="HTML"
-            )
-            return
-        
-        # Проверяем, нет ли уже активной игры
-        game_id = f"{user_id}_{message.chat.id}"
-        if game_id in ACTIVE_GAMES:
-            # Проверяем возраст игры
-            game_data = ACTIVE_GAMES[game_id]
-            game_age = time.time() - game_data.get("start_time", 0)
-            if game_age > 60:  # Если игра старше 60 секунд, удаляем её
-                del ACTIVE_GAMES[game_id]
-            else:
-                bot.send_message(message.chat.id, "❌ У вас уже есть активная игра! Дождитесь окончания.")
-                return
-        
-        # Снимаем ставку
-        user_data["balance"] -= bet
-        save_casino_data()
-        
-        # Отправляем начальное сообщение
-        mention = f'<a href="tg://user?id={user_id}">{username}</a>'
-        msg = bot.send_photo(
-            message.chat.id,
-            photo=CASINO_IMAGE_URL,
-            caption=(
-                f"🎡 <b>РУЛЕТКА</b>\n\n"
-                f"👤 Игрок: {mention}\n"
-                f"💰 Ставка: <b>{format_number(bet)}$</b>\n\n"
-                f"🎯 <b>Выберите вариант:</b>"
-            ),
-            parse_mode="HTML",
-            reply_markup=get_roulette_keyboard()
-        )
-        
-        # Создаем новую игру
-        ACTIVE_GAMES[game_id] = {
-            "user_id": user_id,
-            "bet": bet,
-            "chat_id": message.chat.id,
-            "message_id": msg.message_id,
-            "stage": "choice",  # choice, processing
-            "choice": None,
-            "start_time": time.time()
-        }
-        
-    except Exception as e:
-        logger.error(f"Ошибка в команде рулетки: {e}", exc_info=True)
-        bot.send_message(
-            message.chat.id,
-            "❌ Произошла ошибка при начале игры. Попробуйте позже."
-        )
-
-@bot.callback_query_handler(func=lambda call: call.data.startswith("roulette_"))
-def handle_roulette_callback(call):
-    """Обработчик нажатий на кнопки рулетки"""
-    try:
-        user_id = call.from_user.id
-        chat_id = call.message.chat.id
-        message_id = call.message.message_id
-        
-        # Очищаем старые игры перед обработкой
-        cleanup_old_games()
-        
-        # Проверяем активную игру
-        game_id = f"{user_id}_{chat_id}"
-        
-        if game_id not in ACTIVE_GAMES:
-            bot.answer_callback_query(call.id, "❌ Игра не найдена или завершена!")
-            return
-        
-        game_data = ACTIVE_GAMES[game_id]
-        
-        # Проверяем, что это сообщение от этой игры
-        if game_data["message_id"] != message_id:
-            bot.answer_callback_query(call.id, "❌ Это не ваша текущая игра!")
-            return
-        
-        # Проверяем этап игры
-        if game_data["stage"] != "choice":
-            bot.answer_callback_query(call.id, "❌ Вы уже сделали выбор!")
-            return
-        
-        # Получаем выбор игрока
-        choice = call.data.replace("roulette_", "")
-        
-        if choice not in ROULETTE_TYPES:
-            bot.answer_callback_query(call.id, "❌ Неверный выбор!")
-            return
-        
-        # Обновляем игру
-        game_data["stage"] = "processing"
-        game_data["choice"] = choice
-        
-        # Получаем информацию о выборе
-        choice_info = ROULETTE_TYPES[choice]
-        
-        # Обновляем сообщение - убираем кнопки
-        mention = f'<a href="tg://user?id={user_id}">{call.from_user.first_name}</a>'
-        
-        bot.edit_message_caption(
-            chat_id=chat_id,
-            message_id=message_id,
-            caption=(
-                f"🎡 <b>РУЛЕТКА</b>\n\n"
-                f"👤 Игрок: {mention}\n"
-                f"💰 Ставка: <b>{format_number(game_data['bet'])}$</b>\n"
-                f"🎯 Выбор: <b>{choice_info['name']}</b>\n\n"
-                f"🔄 <b>Крутим рулетку...</b>"
-            ),
-            parse_mode="HTML",
-            reply_markup=None
-        )
-        
-        # Короткая анимация (без sleep чтобы не блокировать)
-        time.sleep(0.5)
-        
-        # Крутим рулетку
-        number, color = spin_roulette()
-        
-        # Проверяем выигрыш
-        win = check_win(choice, number, color)
-        
-        # Обрабатываем результат
-        user_data = get_user_data(user_id)
-        bet = game_data["bet"]
-        multiplier = ROULETTE_TYPES[choice]["multiplier"]
-        
-        if win:
-            win_amount = bet * multiplier
-            user_data["balance"] += win_amount
-            result_text = f"✅ ПОБЕДА! x{multiplier}"
-            result_emoji = "🎉"
-        else:
-            win_amount = 0
-            result_text = "❌ ПРОИГРЫШ"
-            result_emoji = "💸"
-        
-        # Сохраняем изменения баланса
-        save_casino_data()
-        
-        # Получаем эмодзи для цвета
-        if color == "зеленое":
-            color_emoji = "🟢"
-        elif color == "красное":
-            color_emoji = "🔴"
-        else:
-            color_emoji = "⚫"
-        
-        # Формируем финальное сообщение
-        final_caption = (
-            f"🎡 <b>РУЛЕТКА — РЕЗУЛЬТАТ</b>\n\n"
-            f"👤 Игрок: {mention}\n"
-            f"💰 Ставка: <b>{format_number(bet)}$</b>\n"
-            f"🎯 Выбор: <b>{choice_info['name']}</b>\n\n"
-            f"🎲 Выпало: <b>{number} {color_emoji}</b>\n\n"
-            f"{result_emoji} <b>{result_text}</b>\n"
-        )
-        
-        if win:
-            final_caption += f"💵 Выигрыш: <b>{format_number(win_amount)}$</b>\n\n"
-        else:
-            final_caption += f"💸 Потеря: <b>{format_number(bet)}$</b>\n\n"
-        
-        final_caption += f"💰 Баланс: <b>{format_number(user_data['balance'])}$</b>"
-        
-        # Удаляем игру из активных ПЕРЕД показом результата
-        if game_id in ACTIVE_GAMES:
-            del ACTIVE_GAMES[game_id]
-        
-        # Обновляем сообщение с результатом
-        bot.edit_message_caption(
-            chat_id=chat_id,
-            message_id=message_id,
-            caption=final_caption,
-            parse_mode="HTML",
-            reply_markup=None  # Нет кнопок "Играть снова" и "Баланс"
-        )
-        
-        # Отвечаем на callback
-        bot.answer_callback_query(call.id, result_text)
-        
-    except Exception as e:
-        logger.error(f"Ошибка в обработке рулетки: {e}", exc_info=True)
-        
-        try:
-            # Пытаемся вернуть средства при ошибке
-            user_id = call.from_user.id
-            chat_id = call.message.chat.id
-            game_id = f"{user_id}_{chat_id}"
-            
-            if game_id in ACTIVE_GAMES:
-                game_data = ACTIVE_GAMES[game_id]
-                user_data = get_user_data(user_id)
-                
-                # Возвращаем ставку только если игра на стадии choice
-                if game_data.get("stage") == "choice":
-                    user_data["balance"] += game_data.get("bet", 0)
-                    save_casino_data()
-                
-                # Удаляем игру
-                del ACTIVE_GAMES[game_id]
-                
-                # Сообщаем об ошибке
-                bot.edit_message_caption(
-                    chat_id=chat_id,
-                    message_id=call.message.message_id,
-                    caption=(
-                        "❌ <b>ОШИБКА В ИГРЕ</b>\n\n"
-                        "Произошла техническая ошибка.\n\n"
-                        "Попробуйте начать игру заново."
-                    ),
-                    parse_mode="HTML"
-                )
-        except Exception as inner_e:
-            logger.error(f"Ошибка при возврате средств: {inner_e}")
-        
-        bot.answer_callback_query(call.id, "❌ Ошибка в игре!")
-
-def auto_cleanup_games():
-    """Автоматическая очистка старых игр каждую минуту"""
-    while True:
-        try:
-            removed = cleanup_old_games()
-            if removed > 0:
-                logger.info(f"Автоочистка: удалено {removed} старых игр")
-        except Exception as e:
-            logger.error(f"Ошибка в автоочистке: {e}")
-        
-        time.sleep(60)  # 1 минута
-
-# Запускаем фоновую очистку в отдельном потоке
-cleanup_thread = threading.Thread(target=auto_cleanup_games, daemon=True)
-cleanup_thread.start()
-
-print("✅ Модуль рулетки загружен и готов к работе!")
     
     
 # ================== ИГРА В РУЛЕТКУ (CASINO ROULETTE) ==================
+# Полностью переработанная версия с улучшенным парсингом ставок,
+# поддержкой зеленого, диапазонов и защитой команды 'го'.
 
 # Глобальные переменные для хранения ставок
 color_bets = {}     # Для ставок на цвета
 number_bets = {}    # Для ставок на числа
+range_bets = {}     # Для ставок на диапазоны
+
+# Константы для игры
+ROULETTE_RESULTS_FILE = "roulette_results.txt"
+ROULETTE_SPIN_GIF = "https://media1.tenor.com/m/M2YOM0xF7L83eAAAAC/vintage-1960s.gif" # Замени на свою гифку, если хочешь
 
 def log_roulette(chat_id, result_number, result_color):
     """Логирование результатов рулетки"""
     logger.info(f"Рулетка в чате {chat_id}: выпало {result_number} ({result_color})")
-    
-    # Сохраняем в отдельный файл для команды лог
     try:
-        with open("roulette_results.txt", "a", encoding="utf-8") as f:
+        with open(ROULETTE_RESULTS_FILE, "a", encoding="utf-8") as f:
             f.write(f"{result_number}|{result_color}\n")
     except Exception as e:
         logger.error(f"Ошибка сохранения лога рулетки: {e}")
 
-# ================== ОБРАБОТКА СТАВОК НА ЦВЕТ ==================
+def parse_bet_input(text):
+    """
+    Парсит ввод пользователя для ставок.
+    Возвращает (тип_ставки, данные) или None.
+    """
+    parts = text.split()
+    if len(parts) < 2:
+        return None
 
-@bot.message_handler(func=lambda m: m.text and m.text.split()[0].isdigit() and len(m.text.split()) == 2 and m.text.split()[1] in ['к', 'ч'])
-def place_color_bet(message):
-    """Ставка на цвет (красное/черное)"""
+    try:
+        bet = int(parts[0])
+        if bet <= 0:
+            return None
+    except ValueError:
+        return None
+
+    second_part = parts[1].lower()
+
+    # Ставка на цвет (к, ч, з)
+    if len(parts) == 2 and second_part in ['к', 'ч', 'з']:
+        return ('color', bet, second_part)
+
+    # Ставка на одно число
+    if len(parts) == 2 and second_part.isdigit():
+        num = int(second_part)
+        if 0 <= num <= 36:
+            return ('single', bet, num)
+
+    # Ставка на диапазон (например, 1-10, 15-20)
+    if len(parts) == 2 and '-' in second_part:
+        range_parts = second_part.split('-')
+        if len(range_parts) == 2 and range_parts[0].isdigit() and range_parts[1].isdigit():
+            start, end = int(range_parts[0]), int(range_parts[1])
+            # Проверяем валидность диапазона (от 0 до 36, начало <= конец)
+            if 0 <= start <= 36 and 0 <= end <= 36 and start <= end:
+                return ('range', bet, start, end)
+
+    # Ставка на несколько чисел через пробел (например, 100 5 12 23 36)
+    if len(parts) > 2:
+        numbers = []
+        valid = True
+        for p in parts[1:]:
+            if p.isdigit():
+                num = int(p)
+                if 0 <= num <= 36:
+                    numbers.append(num)
+                else:
+                    valid = False
+                    break
+            else:
+                valid = False
+                break
+        if valid and numbers:
+            return ('multi', bet, numbers)
+
+    return None
+
+def has_active_bets(chat_id, user_id):
+    """Проверяет, есть ли у пользователя активные ставки в этом чате."""
+    if chat_id in color_bets and user_id in color_bets[chat_id]:
+        return True
+    if chat_id in number_bets and user_id in number_bets[chat_id]:
+        return True
+    if chat_id in range_bets and user_id in range_bets[chat_id]:
+        return True
+    return False
+
+# ================== ОБРАБОТКА СТАВОК ==================
+
+@bot.message_handler(func=lambda m: m.text and parse_bet_input(m.text) is not None)
+def place_bet(message):
+    """Универсальный обработчик для всех видов ставок."""
     try:
         user_id = message.from_user.id
         chat_id = message.chat.id
-        
-        # Получаем пользователя с кликабельной ссылкой
         mention = f'<a href="tg://user?id={user_id}">{message.from_user.first_name}</a>'
-        
-        parts = message.text.split()
-        bet = int(parts[0])
-        color = parts[1]
-        
-        if bet <= 0:
-            bot.send_message(chat_id, f"❌ {mention}, укажите корректную ставку!", parse_mode="HTML")
-            return
-        
-        # Проверяем баланс
+        parsed = parse_bet_input(message.text)
+
+        if not parsed:
+            return # Не должно случиться из-за условия, но для безопасности
+
+        bet_type = parsed[0]
+        bet_amount = parsed[1]
         user_data = get_user_data(user_id)
-        if user_data["balance"] < bet:
-            bot.send_message(chat_id, f"❌ {mention}, недостаточно средств!\nВаш баланс: <code>{format_number(user_data['balance'])}$</code>", parse_mode="HTML")
+
+        # Проверка баланса для одной единицы ставки (для мульти-ставок проверим позже)
+        if user_data["balance"] < bet_amount:
+            bot.send_message(chat_id, f"❌ {mention}, недостаточно средств для ставки в {format_number(bet_amount)}$!\nВаш баланс: <code>{format_number(user_data['balance'])}$</code>", parse_mode="HTML")
             return
-        
-        # Проверяем, нет ли уже ставки на противоположный цвет
-        if chat_id in color_bets and user_id in color_bets[chat_id]:
-            existing_bet, existing_color, _ = color_bets[chat_id][user_id]
-            if existing_color != color:
-                opposite_color_emoji = '⚫' if color == 'к' else '🔴'
-                bot.send_message(chat_id, f"❌ {mention}, вы уже поставили на {opposite_color_emoji}! Нельзя ставить на оба цвета.", parse_mode="HTML")
+
+        # --- Обработка разных типов ставок ---
+        if bet_type == 'color':
+            color = parsed[2]
+            if user_data["balance"] < bet_amount:
+                return # Уже проверили
+
+            user_data["balance"] -= bet_amount
+            save_casino_data()
+
+            if chat_id not in color_bets:
+                color_bets[chat_id] = {}
+            if user_id not in color_bets[chat_id]:
+                color_bets[chat_id][user_id] = []
+
+            color_bets[chat_id][user_id].append((bet_amount, color, mention))
+            color_emoji = '🔴' if color == 'к' else '⚫' if color == 'ч' else '🟢'
+            bot.send_message(chat_id, f"✅ {mention}, ваша ставка <code>{format_number(bet_amount)}$</code> на {color_emoji} принята!", parse_mode="HTML")
+            logger.info(f"Ставка на цвет от {user_id}: {bet_amount}$ на {color}")
+
+        elif bet_type == 'single':
+            number = parsed[2]
+            if user_data["balance"] < bet_amount:
                 return
-        
-        # Списываем ставку
-        user_data["balance"] -= bet
-        save_casino_data()
-        
-        color_emoji = '🔴' if color == 'к' else '⚫'
-        
-        # Сохраняем ставку
-        if chat_id not in color_bets:
-            color_bets[chat_id] = {}
-        color_bets[chat_id][user_id] = (bet, color, mention)
-        
-        bot.send_message(chat_id, f"✅ {mention}, ваша ставка <code>{format_number(bet)}$</code> на {color_emoji} принята!\n\nНапишите <code>го</code> чтобы запустить рулетку.", parse_mode="HTML")
-        
-        logger.info(f"Ставка на цвет от {user_id}: {bet}$ на {color_emoji}")
-        
+
+            user_data["balance"] -= bet_amount
+            save_casino_data()
+
+            if chat_id not in number_bets:
+                number_bets[chat_id] = {}
+            if user_id not in number_bets[chat_id]:
+                number_bets[chat_id][user_id] = []
+
+            number_bets[chat_id][user_id].append((bet_amount, [number], mention))
+            bot.send_message(chat_id, f"✅ {mention}, ваша ставка <code>{format_number(bet_amount)}$</code> на число <b>{number}</b> принята!", parse_mode="HTML")
+            logger.info(f"Ставка на число от {user_id}: {bet_amount}$ на {number}")
+
+        elif bet_type == 'range':
+            start, end = parsed[2], parsed[3]
+            range_size = end - start + 1
+            total_bet = bet_amount * range_size
+
+            if user_data["balance"] < total_bet:
+                bot.send_message(chat_id, f"❌ {mention}, недостаточно средств!\nНужно: <code>{format_number(total_bet)}$</code> ({range_size} чисел * {format_number(bet_amount)}$).\nВаш баланс: <code>{format_number(user_data['balance'])}$</code>", parse_mode="HTML")
+                return
+
+            user_data["balance"] -= total_bet
+            save_casino_data()
+
+            if chat_id not in range_bets:
+                range_bets[chat_id] = {}
+            if user_id not in range_bets[chat_id]:
+                range_bets[chat_id][user_id] = []
+
+            range_bets[chat_id][user_id].append((bet_amount, start, end, mention))
+            bot.send_message(chat_id, f"✅ {mention}, ваша ставка на диапазон <b>{start}-{end}</b> принята!\n• Ставка на число: <code>{format_number(bet_amount)}$</code>\n• Всего чисел: {range_size}\n• Всего ставка: <code>{format_number(total_bet)}$</code>", parse_mode="HTML")
+            logger.info(f"Ставка на диапазон от {user_id}: {bet_amount}$ на {start}-{end}")
+
+        elif bet_type == 'multi':
+            numbers = parsed[2]
+            total_bet = bet_amount * len(numbers)
+
+            if user_data["balance"] < total_bet:
+                bot.send_message(chat_id, f"❌ {mention}, недостаточно средств!\nНужно: <code>{format_number(total_bet)}$</code> ({len(numbers)} чисел * {format_number(bet_amount)}$).\nВаш баланс: <code>{format_number(user_data['balance'])}$</code>", parse_mode="HTML")
+                return
+
+            user_data["balance"] -= total_bet
+            save_casino_data()
+
+            if chat_id not in number_bets:
+                number_bets[chat_id] = {}
+            if user_id not in number_bets[chat_id]:
+                number_bets[chat_id][user_id] = []
+
+            number_bets[chat_id][user_id].append((bet_amount, numbers, mention))
+            numbers_str = ', '.join(map(str, numbers))
+            bot.send_message(chat_id, f"✅ {mention}, ваша ставка на числа принята!\n• Ставка на число: <code>{format_number(bet_amount)}$</code>\n• Числа: <b>{numbers_str}</b>\n• Всего ставка: <code>{format_number(total_bet)}$</code>", parse_mode="HTML")
+            logger.info(f"Ставка на несколько чисел от {user_id}: {bet_amount}$ на {numbers}")
+
     except Exception as e:
-        logger.error(f"Ошибка ставки на цвет: {e}")
+        logger.error(f"Ошибка приема ставки: {e}")
         bot.send_message(message.chat.id, "❌ Ошибка при размещении ставки!")
 
-# ================== ОБРАБОТКА СТАВОК НА ЧИСЛА ==================
-
-@bot.message_handler(func=lambda m: m.text and m.text.split()[0].isdigit() and len(m.text.split()) >= 2 and all(part.isdigit() or part == m.text.split()[0] for part in m.text.split()))
-def place_number_bet(message):
-    """Ставка на числа"""
-    try:
-        user_id = message.from_user.id
-        chat_id = message.chat.id
-        
-        # Получаем пользователя с кликабельной ссылкой
-        mention = f'<a href="tg://user?id={user_id}">{message.from_user.first_name}</a>'
-        
-        parts = message.text.split()
-        bet = int(parts[0])
-        
-        if bet <= 0:
-            bot.send_message(chat_id, f"❌ {mention}, укажите корректную ставку!", parse_mode="HTML")
-            return
-        
-        # Извлекаем числа (уникальные)
-        chosen_numbers = list(set([int(num) for num in parts[1:] if num.isdigit()]))
-        
-        # Проверки
-        if not chosen_numbers or len(chosen_numbers) > 16:
-            bot.send_message(chat_id, f"❌ {mention}, За одну ставку можно ставить только до 16 числ!", parse_mode="HTML")
-            return
-        
-        if any(num < 0 or num > 36 for num in chosen_numbers):
-            bot.send_message(chat_id, f"❌ {mention}, числа должны быть от 0 до 36!", parse_mode="HTML")
-            return
-        
-        total_bet = bet * len(chosen_numbers)
-        
-        # Проверяем баланс
-        user_data = get_user_data(user_id)
-        if user_data["balance"] < total_bet:
-            bot.send_message(chat_id, f"❌ {mention}, недостаточно средств!\nНужно: <code>{format_number(total_bet)}$</code>\nВаш баланс: <code>{format_number(user_data['balance'])}$</code>", parse_mode="HTML")
-            return
-        
-        # Списываем ставку
-        user_data["balance"] -= total_bet
-        save_casino_data()
-        
-        # Сохраняем ставку
-        if chat_id not in number_bets:
-            number_bets[chat_id] = {}
-        if user_id not in number_bets[chat_id]:
-            number_bets[chat_id][user_id] = []
-        
-        number_bets[chat_id][user_id].append((bet, chosen_numbers, mention))
-        
-        # Формируем ответ
-        numbers_str = ', '.join(map(str, chosen_numbers))
-        bot.send_message(chat_id, f"✅ {mention}, ставка принята!\n• Ставка на число: <code>{format_number(bet)}$</code>\n• Числа: <b>{numbers_str}</b>\n• Всего ставка: <code>{format_number(total_bet)}$</code>\n\nНапишите <code>го</code> чтобы запустить рулетку.", parse_mode="HTML")
-        
-        logger.info(f"Ставка на числа от {user_id}: {bet}$ на {chosen_numbers} (всего: {total_bet}$)")
-        
-    except Exception as e:
-        logger.error(f"Ошибка ставки на числа: {e}")
-        bot.send_message(message.chat.id, "❌ Ошибка при размещении ставки!")
 
 # ================== ЗАПУСК РУЛЕТКИ (ГО) ==================
 
 @bot.message_handler(func=lambda m: m.text and m.text.lower() == 'го')
 def start_roulette(message):
-    """Запуск рулетки"""
+    """Запуск рулетки (только для участников)"""
     try:
         chat_id = message.chat.id
         user_id = message.from_user.id
-        
-        # Проверяем, есть ли ставки
-        has_color_bets = chat_id in color_bets and color_bets[chat_id]
-        has_number_bets = chat_id in number_bets and number_bets[chat_id]
-        
-        if not has_color_bets and not has_number_bets:
-            bot.send_message(chat_id, "❌ Нет ставок для запуска! Сначала сделайте ставку.")
+
+        # 1. ПРОВЕРКА: Есть ли у ЭТОГО пользователя ставки?
+        if not has_active_bets(chat_id, user_id):
+            # Если у пользователя нет ставок, бот просто игнорирует сообщение.
+            # Можно добавить return, чтобы ничего не делал.
+            # Или, если хочешь уведомить, что он не играет, раскомментируй строку ниже.
+            # bot.send_message(chat_id, "❌ У тебя нет активных ставок в этом чате!", parse_mode="HTML")
             return
-        
-        # Анимация кручения рулетки
-        spinning_msg = bot.send_message(chat_id, "🎲 Рулетка крутится...")
-        time.sleep(1)
-        
-        # Генерируем результат
+
+        # 2. Получаем все ставки из этого чата
+        chat_color_bets = color_bets.get(chat_id, {})
+        chat_number_bets = number_bets.get(chat_id, {})
+        chat_range_bets = range_bets.get(chat_id, {})
+
+        # Проверяем, есть ли вообще ставки в чате (на случай, если у кого-то одного они были, но словарь пуст)
+        if not chat_color_bets and not chat_number_bets and not chat_range_bets:
+            bot.send_message(chat_id, "❌ В чате нет активных ставок для запуска!", parse_mode="HTML")
+            return
+
+        # 3. Отправляем анимацию
+        spin_msg = bot.send_animation(chat_id, ROULETTE_SPIN_GIF, caption="🎲 Рулетка крутится...")
+        time.sleep(2)  # Пауза 2 секунды
+
+        # 4. Генерируем результат
         if random.random() < 0.027:  # 2.7% шанс на 0 (зеленое)
             result_number = 0
             result_color = 'з'
-            result_color_emoji = '🟩'
+            result_color_emoji = '🟢'
         else:
             result_number = random.randint(1, 36)
             result_color = 'ч' if result_number % 2 == 0 else 'к'
             result_color_emoji = '⚫' if result_color == 'ч' else '🔴'
-        
-        # Удаляем сообщение с анимацией
-        try:
-            bot.delete_message(chat_id, spinning_msg.message_id)
-        except:
-            pass
-        
-        # Начинаем формировать результат
-        result_text = f"🎰 <b>РЕЗУЛЬТАТЫ РУЛЕТКИ</b> 🎰\n\n"
-        result_text += f"🎲 Выпало: <b>{result_number}</b> {result_color_emoji}\n\n"
-        
-        # Обрабатываем ставки на цвета
-        if has_color_bets:
-            result_text += "🎯 <b>Красное/Черное:</b>\n"
-            for player_id, (bet, color, mention) in color_bets[chat_id].items():
+
+        # 5. Начинаем формировать текст результата
+        result_text_parts = [f"Рулетка: {result_number}{result_color_emoji}"]
+
+        # --- Обработка ставок на цвета ---
+        if chat_color_bets:
+            for player_id, bets in chat_color_bets.items():
                 player_data = get_user_data(player_id)
-                color_emoji = '🔴' if color == 'к' else '⚫'
-                
-                if result_color == color:
-                    winnings = bet * 2
-                    player_data["balance"] += winnings
-                    result_text += f"✅ {mention} ({color_emoji}): +<code>{format_number(winnings)}$</code> (Выигрыш x2)\n"
-                else:
-                    result_text += f"❌ {mention} ({color_emoji}): -<code>{format_number(bet)}$</code>\n"
-                
-                save_casino_data()
-            
-            # Очищаем ставки на цвета
-            del color_bets[chat_id]
-        
-        # Обрабатываем ставки на числа
-        if has_number_bets:
-            result_text += "\n🎯 <b>Ставки на числа:</b>\n"
-            for player_id, bets_list in number_bets[chat_id].items():
-                player_data = get_user_data(player_id)
-                
-                for bet, numbers, mention in bets_list:
-                    numbers_str = ', '.join(map(str, numbers))
-                    total_bet = bet * len(numbers)
-                    
-                    if result_number in numbers:
-                        winnings = bet * 36
+                for bet_amount, color, mention in bets:
+                    color_emoji = '🔴' if color == 'к' else '⚫' if color == 'ч' else '🟢'
+                    bet_str = f"{mention} {format_number(bet_amount)}$ на {color_emoji}"
+
+                    if result_color == color:
+                        multiplier = 2 if color != 'з' else 15
+                        winnings = bet_amount * multiplier
                         player_data["balance"] += winnings
-                        result_text += f"🎉 {mention} ({numbers_str}): +<code>{format_number(winnings)}$</code> (Джекпот x36!)\n"
+                        result_text_parts.append(f"{bet_str} — выигрыш {format_number(winnings)}$ (x{multiplier})")
                     else:
-                        result_text += f"❌ {mention} ({numbers_str}): -<code>{format_number(total_bet)}$</code>\n"
-                    
-                    save_casino_data()
-            
-            # Очищаем ставки на числа
+                        result_text_parts.append(f"{bet_str} — проигрыш")
+
+        # --- Обработка ставок на числа (одиночные и множественные) ---
+        if chat_number_bets:
+            for player_id, bets_list in chat_number_bets.items():
+                player_data = get_user_data(player_id)
+                for bet_amount, numbers, mention in bets_list:
+                    total_bet = bet_amount * len(numbers)
+                    numbers_str = ', '.join(map(str, numbers))
+                    bet_str = f"{mention} {format_number(bet_amount)}$ на {numbers_str}"
+
+                    if result_number in numbers:
+                        winnings = bet_amount * 36
+                        player_data["balance"] += winnings
+                        result_text_parts.append(f"{bet_str} — выигрыш {format_number(winnings)}$ (x36!)")
+                    else:
+                        result_text_parts.append(f"{bet_str} — проигрыш (-{format_number(total_bet)}$)")
+
+        # --- Обработка ставок на диапазоны ---
+        if chat_range_bets:
+            for player_id, bets_list in chat_range_bets.items():
+                player_data = get_user_data(player_id)
+                for bet_amount, start, end, mention in bets_list:
+                    range_size = end - start + 1
+                    total_bet = bet_amount * range_size
+                    bet_str = f"{mention} {format_number(bet_amount)}$ на {start}-{end}"
+
+                    if start <= result_number <= end:
+                        winnings = bet_amount * 36
+                        player_data["balance"] += winnings
+                        result_text_parts.append(f"{bet_str} — выигрыш {format_number(winnings)}$ (x36!)")
+                    else:
+                        result_text_parts.append(f"{bet_str} — проигрыш (-{format_number(total_bet)}$)")
+
+        # Сохраняем все изменения балансов
+        save_casino_data()
+
+        # 6. Очищаем все ставки для этого чата
+        if chat_id in color_bets:
+            del color_bets[chat_id]
+        if chat_id in number_bets:
             del number_bets[chat_id]
-        
-        # Отправляем результаты
-        bot.send_message(chat_id, result_text, parse_mode="HTML")
+        if chat_id in range_bets:
+            del range_bets[chat_id]
+
+        # 7. Отправляем результат
+        final_text = "\n".join(result_text_parts)
+        bot.edit_message_caption(chat_id, spin_msg.message_id, caption=final_text, parse_mode="HTML")
         log_roulette(chat_id, result_number, result_color)
-        
+
     except Exception as e:
         logger.error(f"Ошибка запуска рулетки: {e}")
-        bot.send_message(message.chat.id, "❌ Команда была отклонена, возможная причина: Игра ранее была запущена другим игроком")
+        # Не отправляем сообщение об ошибке в чат, чтобы не спамить, если что-то пошло не так.
+        # Но можно раскомментировать для отладки:
+        # bot.send_message(message.chat.id, f"❌ Ошибка: {e}")
+
 
 # ================== КОМАНДА ЛОГИ РУЛЕТКИ ==================
 
@@ -9933,426 +8339,40 @@ def start_roulette(message):
 def show_roulette_logs(message):
     """Показать последние 10 результатов рулетки"""
     try:
-        if not os.path.exists("roulette_results.txt"):
-            bot.reply_to(message, "❗ Сегодня ещё никто не играл в рулетку - логи пустые")
+        if not os.path.exists(ROULETTE_RESULTS_FILE):
+            bot.reply_to(message, "❗ Логи рулетки пусты.")
             return
-        
-        with open("roulette_results.txt", "r", encoding="utf-8") as f:
+
+        with open(ROULETTE_RESULTS_FILE, "r", encoding="utf-8") as f:
             logs = f.readlines()
-        
-        # Берем последние 10 строк
+
         recent_logs = logs[-10:] if len(logs) >= 10 else logs
-        
+
         if not recent_logs:
-            bot.reply_to(message, "❗ Сегодня ещё никто не играл в рулетку - логи пустые")
+            bot.reply_to(message, "❗ Логи рулетки пусты.")
             return
-        
-        # Переворачиваем чтобы новые были сверху
+
         recent_logs.reverse()
-        
-        text = "📝 <b>Логи:</b>\n\n"
-        
+        text = "📝 <b>Последние 10 результатов рулетки:</b>\n\n"
+
         for log in recent_logs:
             log = log.strip()
             if "|" in log:
-                # Формат: число|цвет
                 parts = log.split("|")
-                if len(parts) >= 2:
-                    number = parts[0]
-                    color = parts[1]
-                    
-                    if color == 'з':
-                        emoji = '🟩'
-                    elif color == 'к':
-                        emoji = '🔴'
-                    elif color == 'ч':
-                        emoji = '⚫'
-                    else:
-                        continue
-                    
-                    text += f"{emoji} ({number})\n"
-        
+                number = parts[0]
+                color = parts[1]
+                emoji = '🟢' if color == 'з' else ('🔴' if color == 'к' else '⚫')
+                text += f"{emoji} ({number})\n"
+
         bot.reply_to(message, text, parse_mode="HTML")
-        
+
     except Exception as e:
         logger.error(f"Ошибка показа логов рулетки: {e}")
         bot.reply_to(message, "❌ Ошибка при получении логов!")
-        
-# ================== ИГРА "ДВЕРИ С БОМБАМИ" ==================
 
-# Глобальный словарь для хранения активных игр
-active_doors_games = {}
-doors_lock = threading.Lock()  # Добавляем блокировку для потокобезопасности
+print("✅ Новая улучшенная система рулетки загружена!")
+        
 
-class DoorsGame:
-    """Класс для игры в двери с бомбами"""
-    def __init__(self, user_id, bet_amount):
-        self.user_id = user_id
-        self.bet_amount = bet_amount
-        self.original_bet = bet_amount
-        self.current_bet = bet_amount
-        self.multiplier = 1.0
-        self.doors = []  # 0 - бомба, 1 - множитель
-        self.opened_doors = []  # Индексы открытых дверей
-        self.game_message_id = None
-        self.is_active = True
-        self.setup_game()
-    
-    def setup_game(self):
-        """Настройка игры: 4 бомбы, 2 множителя"""
-        # Создаем список: 4 бомбы (0) и 2 множителя (1)
-        self.doors = [0, 0, 0, 0, 1, 1]
-        # Перемешиваем случайным образом
-        random.shuffle(self.doors)
-    
-    def open_door(self, door_index):
-        """Открывает дверь и возвращает результат"""
-        if door_index in self.opened_doors:
-            return None  # Дверь уже открыта
-        
-        self.opened_doors.append(door_index)
-        
-        if self.doors[door_index] == 0:  # Бомба
-            self.is_active = False
-            return "bomb"
-        else:  # Множитель
-            self.multiplier += 0.50
-            self.current_bet = int(self.original_bet * self.multiplier)
-            return "multiplier"
-    
-    def can_continue(self):
-        """Можно ли продолжать игру"""
-        # Если открыто 2 множителя или 1 бомба - игра заканчивается
-        opened_multipliers = sum(1 for i in self.opened_doors if self.doors[i] == 1)
-        opened_bombs = sum(1 for i in self.opened_doors if self.doors[i] == 0)
-        
-        return opened_bombs == 0 and opened_multipliers < 2 and len(self.opened_doors) < 6
-    
-    def get_remaining_doors(self):
-        """Получить количество оставшихся дверей"""
-        return 6 - len(self.opened_doors)
-
-@bot.message_handler(func=lambda m: m.text and (
-    m.text.lower().startswith("дверь ") or 
-    m.text.lower().startswith("дв ")
-))
-def start_doors_game(message):
-    """Начало игры в двери"""
-    user_id = message.from_user.id
-    mention = f'<a href="tg://user?id={user_id}">{message.from_user.first_name}</a>'
-    
-    # Проверяем, есть ли уже активная игра у пользователя
-    if user_id in active_doors_games:
-        bot.reply_to(message, f"{mention}, у тебя уже есть активная игра! Закончи её сначала.", parse_mode="HTML")
-        return
-    
-    # Парсим ставку
-    parts = message.text.split()
-    if len(parts) < 2:
-        bot.reply_to(message, f"{mention}, укажи ставку!\nПример: <code>дверь 1000</code> или <code>дв 500</code>", parse_mode="HTML")
-        return
-    
-    try:
-        bet_amount = int(parts[1])
-        if bet_amount <= 0:
-            bot.reply_to(message, "❌ Ставка должна быть больше 0!")
-            return
-        
-        # Проверяем баланс
-        user_data = get_user_data(user_id)
-        if user_data["balance"] < bet_amount:
-            bot.reply_to(message, f"{mention}, недостаточно средств!\n💰 На балансе: {format_number(user_data['balance'])}$", parse_mode="HTML")
-            return
-        
-        # Списываем ставку
-        user_data["balance"] -= bet_amount
-        save_casino_data()
-        
-        # Создаем игру
-        game = DoorsGame(user_id, bet_amount)
-        
-        # Отправляем начальное сообщение с кнопками
-        text = (
-            f"🚪 {mention}, начинаем игру!\n\n"
-            f"💰 Ставка: <code>{format_number(bet_amount)}$</code>\n"
-            f"🎯 Текущий множитель: <b>{game.multiplier}x</b>\n"
-            f"💵 Текущий выигрыш: <code>{format_number(game.current_bet)}$</code>\n\n"
-            f"🔻 <b>Правила:</b>\n"
-            f"• 6 дверей\n"
-            f"• 4 бомбы 💣 (проигрыш)\n"
-            f"• 2 множителя +0.50💹\n"
-            f"• Можно открывать двери пока не попадёшь на бомбу\n"
-            f"• Можно забрать выигрыш в любой момент\n\n"
-            f"👇 Выбери дверь:"
-        )
-        
-        # Создаем клавиатуру с 6 дверями
-        kb = InlineKeyboardMarkup(row_width=3)
-        buttons_row1 = []
-        buttons_row2 = []
-        
-        for i in range(6):
-            if i < 3:
-                buttons_row1.append(InlineKeyboardButton("🚪", callback_data=f"door_open_{user_id}_{i}"))
-            else:
-                buttons_row2.append(InlineKeyboardButton("🚪", callback_data=f"door_open_{user_id}_{i}"))
-        
-        kb.row(*buttons_row1)
-        kb.row(*buttons_row2)
-        kb.row(InlineKeyboardButton("💸 Забрать выигрыш", callback_data=f"door_take_{user_id}"))
-        
-        msg = bot.send_message(message.chat.id, text, parse_mode="HTML", reply_markup=kb)
-        game.game_message_id = msg.message_id
-        
-        # Сохраняем игру
-        active_doors_games[user_id] = game
-        
-        logger.info(f"🚪 Игра 'Двери' начата: {user_id}, ставка: {bet_amount}$")
-        
-    except ValueError:
-        bot.reply_to(message, "❌ Ставка должна быть числом!\nПример: <code>дверь 1000</code>", parse_mode="HTML")
-    except Exception as e:
-        logger.error(f"Ошибка начала игры в двери: {e}")
-        bot.reply_to(message, "❌ Произошла ошибка при запуске игры!")
-
-@bot.callback_query_handler(func=lambda c: c.data.startswith("door_open_"))
-def open_door_callback(call):
-    try:
-        parts = call.data.split("_")
-        user_id = int(parts[2])
-        door_index = int(parts[3])
-        
-        if call.from_user.id != user_id:
-            bot.answer_callback_query(call.id, "🚪 Это не твоя игра!", show_alert=True)
-            return
-        
-        # Безопасно получаем игру с блокировкой
-        game = None
-        with doors_lock:
-            if user_id in active_doors_games:
-                game = active_doors_games[user_id]
-        
-        if not game:
-            bot.answer_callback_query(call.id, "❌ Игра не найдена!", show_alert=True)
-            return
-        
-        if not game.is_active:
-            bot.answer_callback_query(call.id, "❌ Игра уже завершена!", show_alert=True)
-            return
-        
-        result = game.open_door(door_index)
-        if result is None:
-            bot.answer_callback_query(call.id, "🚪 Эта дверь уже открыта!", show_alert=True)
-            return
-        
-        mention = f'<a href="tg://user?id={user_id}">{call.from_user.first_name}</a>'
-        
-        if result == "bomb":
-            # Игрок попал на бомбу
-            text = (
-                f"💥 {mention} попал(а) на бомбу!\n\n"
-                f"💰 Проиграно: <code>{format_number(game.original_bet)}$</code>\n"
-                f"🎯 Открыто дверей: {len(game.opened_doors)}/6\n\n"
-                f"<i>Ставка не возвращается</i>"
-            )
-            
-            # Удаляем игру из активных
-            with doors_lock:
-                if user_id in active_doors_games:
-                    active_doors_games.pop(user_id, None)
-            
-            # Создаем клавиатуру с результатами
-            kb = InlineKeyboardMarkup()
-            
-            # Первый ряд (двери 0-2)
-            buttons_row1 = []
-            for i in range(3):
-                if i in game.opened_doors:
-                    buttons_row1.append(InlineKeyboardButton(
-                        "💣" if game.doors[i] == 0 else "+0.50💹", 
-                        callback_data="door_disabled"
-                    ))
-                else:
-                    buttons_row1.append(InlineKeyboardButton("🚪", callback_data="door_disabled"))
-            
-            # Второй ряд (двери 3-5)
-            buttons_row2 = []
-            for i in range(3, 6):
-                if i in game.opened_doors:
-                    buttons_row2.append(InlineKeyboardButton(
-                        "💣" if game.doors[i] == 0 else "+0.50💹", 
-                        callback_data="door_disabled"
-                    ))
-                else:
-                    buttons_row2.append(InlineKeyboardButton("🚪", callback_data="door_disabled"))
-            
-            kb.row(*buttons_row1)
-            kb.row(*buttons_row2)
-            kb.row(InlineKeyboardButton("🔄 Начать заново", callback_data=f"door_restart_{user_id}"))
-            
-            bot.edit_message_text(
-                text,
-                call.message.chat.id,
-                call.message.message_id,
-                parse_mode="HTML",
-                reply_markup=kb
-            )
-            bot.answer_callback_query(call.id, "💥 Бомба!")
-            
-        else:  # result == "multiplier"
-            can_continue = game.can_continue()
-            if not can_continue:
-                game.is_active = False
-                with doors_lock:
-                    if user_id in active_doors_games:
-                        active_doors_games.pop(user_id, None)
-            
-            text = (
-                f"🚪 {mention} открыл(а) дверь!\n\n"
-                f"🎯 Множитель: <b>{game.multiplier}x</b>\n"
-                f"💵 Выигрыш: <code>{format_number(game.current_bet)}$</code>\n"
-                f"🚪 Осталось дверей: {game.get_remaining_doors()}\n\n"
-            )
-            
-            # Создаем обновленную клавиатуру
-            kb = InlineKeyboardMarkup(row_width=3)
-            
-            # Первый ряд (двери 0-2)
-            buttons_row1 = []
-            for i in range(3):
-                if i in game.opened_doors:
-                    buttons_row1.append(InlineKeyboardButton(
-                        "+0.50💹", 
-                        callback_data="door_disabled"
-                    ))
-                elif not game.is_active:
-                    buttons_row1.append(InlineKeyboardButton("🚪", callback_data="door_disabled"))
-                else:
-                    buttons_row1.append(InlineKeyboardButton("🚪", callback_data=f"door_open_{user_id}_{i}"))
-            
-            # Второй ряд (двери 3-5)
-            buttons_row2 = []
-            for i in range(3, 6):
-                if i in game.opened_doors:
-                    buttons_row2.append(InlineKeyboardButton(
-                        "+0.50💹", 
-                        callback_data="door_disabled"
-                    ))
-                elif not game.is_active:
-                    buttons_row2.append(InlineKeyboardButton("🚪", callback_data="door_disabled"))
-                else:
-                    buttons_row2.append(InlineKeyboardButton("🚪", callback_data=f"door_open_{user_id}_{i}"))
-            
-            kb.row(*buttons_row1)
-            kb.row(*buttons_row2)
-            
-            if game.is_active:
-                kb.row(InlineKeyboardButton("💸 Забрать выигрыш", callback_data=f"door_take_{user_id}"))
-            else:
-                kb.row(InlineKeyboardButton("🎉 Забрать выигрыш", callback_data=f"door_take_{user_id}"))
-                text += f"<b>🎯 Игра завершена! Открыто 2 множителя.</b>"
-            
-            bot.edit_message_text(
-                text,
-                call.message.chat.id,
-                call.message.message_id,
-                parse_mode="HTML",
-                reply_markup=kb
-            )
-            
-            bot.answer_callback_query(call.id, f"+0.50💹 Множитель: {game.multiplier}x")
-            
-    except Exception as e:
-        logger.error(f"Ошибка открытия двери: {e}")
-        bot.answer_callback_query(call.id, "❌ Ошибка при открытии двери!", show_alert=True)
-
-@bot.callback_query_handler(func=lambda c: c.data.startswith("door_take_"))
-def take_win_callback(call):
-    try:
-        user_id = int(call.data.split("_")[2])
-        
-        if call.from_user.id != user_id:
-            bot.answer_callback_query(call.id, "💰 Это не твоя игра!", show_alert=True)
-            return
-        
-        # Безопасно получаем и удаляем игру
-        game = None
-        with doors_lock:
-            if user_id in active_doors_games:
-                game = active_doors_games.pop(user_id, None)
-        
-        if not game:
-            bot.answer_callback_query(call.id, "❌ Игра не найдена!", show_alert=True)
-            return
-        
-        # Начисляем выигрыш
-        user_data = get_user_data(user_id)
-        user_data["balance"] += game.current_bet
-        save_casino_data()
-        
-        mention = f'<a href="tg://user?id={user_id}">{call.from_user.first_name}</a>'
-        text = (
-            f"🎉 {mention} забрал(а) выигрыш!\n\n"
-            f"💰 Получено: <code>{format_number(game.current_bet)}$</code>\n"
-            f"🎯 Итоговый множитель: <b>{game.multiplier}x</b>\n"
-            f"💵 Текущий баланс: <code>{format_number(user_data['balance'])}$</code>"
-        )
-        
-        bot.edit_message_text(
-            text,
-            call.message.chat.id,
-            call.message.message_id,
-            parse_mode="HTML"
-        )
-        
-        bot.answer_callback_query(call.id, f"✅ +{format_number(game.current_bet)}$")
-        
-    except Exception as e:
-        logger.error(f"Ошибка взятия выигрыша: {e}")
-        bot.answer_callback_query(call.id, "❌ Ошибка при получении выигрыша!", show_alert=True)
-
-@bot.callback_query_handler(func=lambda c: c.data.startswith("door_restart_"))
-def restart_game_callback(call):
-    try:
-        user_id = int(call.data.split("_")[2])
-        
-        if call.from_user.id != user_id:
-            bot.answer_callback_query(call.id, "🔄 Это не твоя кнопка!", show_alert=True)
-            return
-        
-        # Создаем фейковое сообщение для повторного запуска
-        class FakeMessage:
-            def __init__(self, chat_id, from_user):
-                self.chat = type('Chat', (), {'id': chat_id})()
-                self.from_user = from_user
-        
-        fake_msg = FakeMessage(call.message.chat.id, call.from_user)
-        
-        # Удаляем старое сообщение
-        try:
-            bot.delete_message(call.message.chat.id, call.message.message_id)
-        except:
-            pass
-        
-        # Просим ввести новую ставку
-        bot.send_message(
-            call.message.chat.id,
-            f"🔄 <a href='tg://user?id={user_id}'>{call.from_user.first_name}</a>, введите новую ставку для игры:\n\nПример: <code>дверь 1000</code>",
-            parse_mode="HTML"
-        )
-        
-        bot.answer_callback_query(call.id, "🔄 Введите новую ставку")
-        
-    except Exception as e:
-        logger.error(f"Ошибка рестарта игры: {e}")
-        bot.answer_callback_query(call.id, "❌ Ошибка!", show_alert=True)
-
-@bot.callback_query_handler(func=lambda c: c.data == "door_disabled")
-def door_disabled_callback(call):
-    """Обработчик для отключенных кнопок"""
-    bot.answer_callback_query(call.id, "⛔ Эта кнопка недоступна!", show_alert=False)
-
-print("✅ Игра 'Двери' загружена и готова к работе! 🚪")
         
 # ================== ФУТБОЛ / БАСКЕТБОЛ / ТИР (50/50) БЕЗ АНИМАЦИИ ==================
 
@@ -10613,313 +8633,7 @@ def slot_game(message):
         logger.error(f"Ошибка в слотах: {e}")
         bot.reply_to(message, "❌ Ошибка в игре")
 
-# ================== РАКЕТКА (CRASH - ИСПРАВЛЕННАЯ ВЕРСИЯ) ==================
 
-rocket_games = {}
-rocket_messages = {}
-rocket_lock = threading.Lock()  # Добавляем блокировку для потокобезопасности
-
-def calculate_crash_chance(multiplier):
-    """Вероятность краша в зависимости от множителя"""
-    if multiplier < 1.1:
-        return 0.5
-    elif multiplier < 1.5:
-        return 1.0
-    elif multiplier < 2.0:
-        return 2.0
-    elif multiplier < 3.0:
-        return 5.0
-    elif multiplier < 5.0:
-        return 10.0
-    elif multiplier < 10.0:
-        return 15.0
-    else:
-        return 25.0
-
-@bot.message_handler(func=lambda m: m.text and m.text.lower().startswith("эвжсжхваждсакетка"))
-def rocket_start(message):
-    try:
-        user_id = message.from_user.id
-        
-        with rocket_lock:
-            if user_id in rocket_games:
-                bot.reply_to(message, "❌ У тебя уже запущена ракетка!")
-                return
-        
-        parts = message.text.split()
-        if len(parts) < 2:
-            bot.reply_to(message, "❌ Используй: <code>ракетка [ставка]</code>", parse_mode="HTML")
-            return
-        
-        try:
-            bet = int(parts[1])
-            if bet <= 0:
-                bot.reply_to(message, "❌ Ставка должна быть больше 0")
-                return
-        except ValueError:
-            bot.reply_to(message, "❌ Ставка должна быть числом")
-            return
-        
-        user_data = get_user_data(user_id)
-        if user_data["balance"] < bet:
-            bot.reply_to(message, f"❌ Недостаточно средств\n💰 Баланс: {format_number(user_data['balance'])}$")
-            return
-        
-        user_data["balance"] -= bet
-        save_casino_data()
-        
-        mention = f'<a href="tg://user?id={user_id}">{message.from_user.first_name}</a>'
-        
-        kb = InlineKeyboardMarkup()
-        kb.add(InlineKeyboardButton("ЗАБРАТЬ", callback_data=f"rocket_take_{user_id}"))
-        
-        msg = bot.send_message(
-            message.chat.id,
-            f"{mention} начал игру в ракетку 🚀\n💹 Коэффициент: 1.00×\n💰 Ставка: {format_number(bet)}$",
-            parse_mode="HTML",
-            reply_markup=kb
-        )
-        
-        with rocket_lock:
-            rocket_games[user_id] = {
-                "message_id": msg.message_id,
-                "chat_id": message.chat.id,
-                "bet": bet,
-                "multiplier": 1.00,
-                "crashed": False,
-                "start_time": time.time(),
-                "last_update": time.time(),
-                "active": True
-            }
-            rocket_messages[user_id] = msg.message_id
-        
-        # Запускаем игру в отдельном потоке
-        threading.Thread(target=rocket_game_loop, args=(user_id,), daemon=True).start()
-        
-    except Exception as e:
-        logger.error(f"Ошибка старта ракетки: {e}")
-        bot.reply_to(message, "❌ Ошибка в игре")
-
-def rocket_game_loop(user_id):
-    try:
-        while True:
-            with rocket_lock:
-                if user_id not in rocket_games:
-                    break
-                
-                game = rocket_games[user_id]
-                
-                if not game["active"] or game["crashed"]:
-                    break
-            
-            # Ждем 0.1 секунды между обновлениями
-            time.sleep(0.1)
-            
-            with rocket_lock:
-                if user_id not in rocket_games:
-                    break
-                    
-                game = rocket_games[user_id]
-                
-                # Проверяем шанс краша
-                crash_chance = calculate_crash_chance(game["multiplier"])
-                if random.random() * 100 < crash_chance:
-                    game["crashed"] = True
-                    game["active"] = False
-                    
-                    # Получаем имя пользователя
-                    try:
-                        chat = bot.get_chat(user_id)
-                        user_name = chat.first_name
-                    except:
-                        user_name = f"Пользователь {user_id}"
-                    
-                    mention = f'<a href="tg://user?id={user_id}">{user_name}</a>'
-                    text = f"🚀 {mention}, ты не успел забрать коэффициент и проиграл {format_number(game['bet'])}$"
-                    
-                    # Редактируем сообщение без кнопки
-                    try:
-                        bot.edit_message_text(
-                            text,
-                            chat_id=game["chat_id"],
-                            message_id=game["message_id"],
-                            parse_mode="HTML"
-                        )
-                    except Exception as e:
-                        logger.error(f"Ошибка редактирования сообщения при краше: {e}")
-                    
-                    # Удаляем из активных игр
-                    rocket_games.pop(user_id, None)
-                    rocket_messages.pop(user_id, None)
-                    break
-            
-            # Увеличиваем множитель
-            increment = random.uniform(0.01, 0.05)
-            game["multiplier"] += increment
-            game["multiplier"] = round(game["multiplier"], 2)
-            
-            # Обновляем сообщение каждые 0.1 секунды
-            try:
-                mention = f'<a href="tg://user?id={user_id}">{bot.get_chat(user_id).first_name}</a>'
-                kb = InlineKeyboardMarkup()
-                kb.add(InlineKeyboardButton("ЗАБРАТЬ", callback_data=f"rocket_take_{user_id}"))
-                
-                multiplier_str = f"{game['multiplier']:.2f}"
-                
-                bot.edit_message_text(
-                    f"{mention} начал игру в ракетку 🚀\n💹 Коэффициент: {multiplier_str}×\n💰 Ставка: {format_number(game['bet'])}$",
-                    chat_id=game["chat_id"],
-                    message_id=game["message_id"],
-                    parse_mode="HTML",
-                    reply_markup=kb
-                )
-                
-                game["last_update"] = time.time()
-                
-            except Exception as e:
-                logger.error(f"Ошибка обновления сообщения ракетки: {e}")
-                with rocket_lock:
-                    if user_id in rocket_games:
-                        rocket_games[user_id]["active"] = False
-                break
-            
-            # Автоматический краш на высоком множителе
-            if game["multiplier"] >= 20.0:
-                with rocket_lock:
-                    if user_id in rocket_games:
-                        rocket_games[user_id]["crashed"] = True
-                        rocket_games[user_id]["active"] = False
-                        
-                        mention = f'<a href="tg://user?id={user_id}">{bot.get_chat(user_id).first_name}</a>'
-                        text = f"🚀 {mention}, ты не успел забрать коэффициент и проиграл {format_number(game['bet'])}$"
-                        
-                        try:
-                            bot.edit_message_text(
-                                text,
-                                chat_id=game["chat_id"],
-                                message_id=game["message_id"],
-                                parse_mode="HTML"
-                            )
-                        except:
-                            pass
-                        
-                        rocket_games.pop(user_id, None)
-                        rocket_messages.pop(user_id, None)
-                        break
-                        
-    except Exception as e:
-        logger.error(f"Ошибка в луп ракетки для {user_id}: {e}")
-        with rocket_lock:
-            if user_id in rocket_games:
-                rocket_games.pop(user_id, None)
-            if user_id in rocket_messages:
-                rocket_messages.pop(user_id, None)
-
-@bot.callback_query_handler(func=lambda c: c.data.startswith("rocket_take_"))
-def rocket_take(call):
-    try:
-        owner_id = int(call.data.split("_")[2])
-        
-        if call.from_user.id != owner_id:
-            bot.answer_callback_query(call.id, "❌ Это не твоя ракетка!", show_alert=True)
-            return
-        
-        with rocket_lock:
-            if owner_id not in rocket_games:
-                bot.answer_callback_query(call.id, "❌ Игра уже завершена!", show_alert=True)
-                return
-            
-            game = rocket_games[owner_id]
-            
-            if game["crashed"] or not game["active"]:
-                bot.answer_callback_query(call.id, "❌ Ракета уже упала!", show_alert=True)
-                return
-            
-            # Помечаем игру как неактивную
-            game["active"] = False
-            rocket_games[owner_id]["active"] = False
-        
-        win_amount = int(game["bet"] * game["multiplier"])
-        user_data = get_user_data(owner_id)
-        user_data["balance"] += win_amount
-        save_casino_data()
-        
-        mention = f'<a href="tg://user?id={owner_id}">{call.from_user.first_name}</a>'
-        multiplier_str = f"{game['multiplier']:.2f}"
-        
-        text = (
-            f"{mention} забрал(а) коэффициент {multiplier_str}×\n"
-            f"💰 Ставка: {format_number(game['bet'])}$\n"
-            f"🎉 Выигрыш: {format_number(win_amount)}$\n"
-            f"💵 Баланс: {format_number(user_data['balance'])}$"
-        )
-        
-        try:
-            bot.edit_message_text(
-                text,
-                chat_id=game["chat_id"],
-                message_id=game["message_id"],
-                parse_mode="HTML"
-            )
-        except Exception as e:
-            logger.error(f"Ошибка редактирования сообщения при выигрыше: {e}")
-        
-        with rocket_lock:
-            rocket_games.pop(owner_id, None)
-            rocket_messages.pop(owner_id, None)
-            
-        bot.answer_callback_query(call.id, f"✅ +{format_number(win_amount)}$")
-        
-    except Exception as e:
-        logger.error(f"Ошибка взятия ракетки: {e}")
-        bot.answer_callback_query(call.id, "❌ Ошибка!", show_alert=True)
-        with rocket_lock:
-            if owner_id in rocket_games:
-                rocket_games.pop(owner_id, None)
-            if owner_id in rocket_messages:
-                rocket_messages.pop(owner_id, None)
-
-# Очистка зависших игр каждые 5 минут
-def cleanup_rocket_games():
-    while True:
-        try:
-            current_time = time.time()
-            to_remove = []
-            
-            with rocket_lock:
-                for user_id, game in rocket_games.items():
-                    if current_time - game.get("start_time", 0) > 300:  # 5 минут таймаут
-                        to_remove.append(user_id)
-                        try:
-                            mention = f'<a href="tg://user?id={user_id}">{bot.get_chat(user_id).first_name}</a>'
-                            bot.edit_message_text(
-                                f"⏰ {mention}, игра отменена (таймаут)\n💰 Возвращено: {format_number(game['bet'])}$",
-                                chat_id=game["chat_id"],
-                                message_id=game["message_id"],
-                                parse_mode="HTML"
-                            )
-                            
-                            # Возвращаем ставку
-                            user_data = get_user_data(user_id)
-                            user_data["balance"] += game["bet"]
-                            save_casino_data()
-                            
-                        except:
-                            pass
-            
-                for user_id in to_remove:
-                    rocket_games.pop(user_id, None)
-                    rocket_messages.pop(user_id, None)
-                    
-        except Exception as e:
-            logger.error(f"Ошибка очистки ракеток: {e}")
-        
-        time.sleep(300)  # Проверка каждые 5 минут
-
-# Запуск очистки в отдельном потоке
-threading.Thread(target=cleanup_rocket_games, daemon=True).start()
-
-print("✅ Игра 'Ракетка' исправлена и готова!")
 
 # ================== ИГРА В КУБИК (1 НА 1) ==================
 DICE_DB = "dice_games.db"
@@ -11360,58 +9074,29 @@ def get_user_name(user_id):
         return f"Игрок {user_id}"
 
 print("✅ Игры: футбол, баскетбол, тир и кубик загружены и готовы к работе! ⚽🏀🎯🎲")
-# ================== MINES 5x5 ==================
-MINE_CONFIGS = {
-    3: {
-        "name": "Лёгкий",
-        "multiplier_increment": 1.25,
-        "base_multiplier": 1.0
-    },
-    5: {
-        "name": "Средний",
-        "multiplier_increment": 1.40,
-        "base_multiplier": 1.0
-    },
-    10: {
-        "name": "Сложный",
-        "multiplier_increment": 2.00,
-        "base_multiplier": 1.0
-    },
-    15: {
-        "name": "Экстрим",
-        "multiplier_increment": 2.25,
-        "base_multiplier": 1.0
-    },
-    20: {
-        "name": "Хардкор",
-        "multiplier_increment": 4.00,
-        "base_multiplier": 1.0
-    }
-}
+# ================== MINES 5x5 СТАНДАРТНАЯ ВЕРСИЯ ==================
 
-def start_mines_with_mines_count(user_id, bet, mines_count):
-    """Начинает игру с указанным количеством мин"""
+# Глобальные переменные для конфигурации мин (изменяются через админ-команды)
+CURRENT_MINES_COUNT = 6  # Стандартное количество мин
+CURRENT_MULTIPLIER = 0.25  # Стандартный множитель за клетку
+
+def start_mines_game(user_id, bet):
+    """Начинает игру с текущими настройками"""
     u = get_user_data(user_id)
     if u["balance"] < bet:
         return False
 
-    if mines_count not in MINE_CONFIGS:
-        return False
-
-    config = MINE_CONFIGS[mines_count]
-    
     u["balance"] -= bet  
     u.update({  
         "game": "mines",  
         "stage": "mines",  
         "mines_owner": user_id,  
         "mines_bet": bet,  
-        "mines_count": mines_count,
-        "mines_positions": random.sample(range(25), mines_count),  
+        "mines_count": CURRENT_MINES_COUNT,
+        "mines_positions": random.sample(range(25), CURRENT_MINES_COUNT),  
         "mines_open": [],  
-        "mines_multiplier": config["base_multiplier"],  
+        "mines_multiplier": 1.0,  
         "mines_started": False,
-        "mines_config": config
     })  
     save_casino_data()  
     return True
@@ -11453,13 +9138,14 @@ def mines_keyboard(user_id, reveal_all=False, hide_buttons=False):
         if not u["mines_started"]:  
             # Кнопка отмены в начале игры
             kb.row(  
-                InlineKeyboardButton(" Отменить игру", callback_data=f"mines_cancel_{user_id}")  
+                InlineKeyboardButton(" ❌ Отменить игру", callback_data=f"mines_cancel_{user_id}")  
             )  
         else:  
             # Кнопка забрать выигрыш во время игры
             current_win = int(u["mines_bet"] * u["mines_multiplier"])
             kb.row(  
-                InlineKeyboardButton(f"💸 Забрать выигрыш", callback_data=f"mines_cash_{user_id}")  
+                InlineKeyboardButton(f"💸 Забрать выигрыш ({format_number(current_win)}$)", 
+                                    callback_data=f"mines_cash_{user_id}")  
             )  
 
     return kb
@@ -11487,134 +9173,29 @@ def mines_command(message):
             bot.reply_to(message, "❌ Недостаточно средств!")
             return
 
-        # Сохраняем базовую информацию об игре
-        user["mines_pending_bet"] = bet
-        save_casino_data()
-
         mention = f'<a href="tg://user?id={user_id}">{message.from_user.first_name}</a>'
 
-        # Показываем выбор количества мин
+        # Начинаем игру с текущими настройками
+        success = start_mines_game(user_id, bet)
+        
+        if not success:
+            bot.reply_to(message, "❌ Ошибка начала игры")
+            return
+        
         text = (
-            f"{mention}, ставка: <b>{format_number(bet)}$</b>\n"
-            f"🎯 Выберите количество мин:"
+            f"{mention}, игра началась!\n"
+            f"💰 Текущий выигрыш: <b>{format_number(bet)}$</b>"
         )
-
-        kb = InlineKeyboardMarkup(row_width=3)
         
-        # Кнопки выбора количества мин
-        buttons = []
-        for mines_count in [3, 5, 10, 15, 20]:
-            config = MINE_CONFIGS[mines_count]
-            buttons.append(
-                InlineKeyboardButton(
-                    f"{config['name']} ({mines_count})", 
-                    callback_data=f"mines_select_{user_id}_{mines_count}"
-                )
-            )
-        
-        # Добавляем кнопки в 2 ряда
-        kb.row(buttons[0], buttons[1])
-        kb.row(buttons[2], buttons[3])
-        kb.row(buttons[4])
-        kb.row(InlineKeyboardButton("❌ Отменить", callback_data=f"mines_pending_cancel_{user_id}"))
-
         bot.send_message(
             message.chat.id,
             text,
             parse_mode="HTML",
-            reply_markup=kb
+            reply_markup=mines_keyboard(user_id)
         )
 
     except ValueError:
         bot.reply_to(message, "❌ Ставка должна быть числом!")
-
-@bot.callback_query_handler(func=lambda c: c.data.startswith("mines_select_"))
-def mines_select_handler(call):
-    """Обработчик выбора количества мин"""
-    try:
-        parts = call.data.split("_")
-        user_id = int(parts[2])
-        mines_count = int(parts[3])
-        
-        # Проверяем, что нажимает владелец
-        if call.from_user.id != user_id:
-            bot.answer_callback_query(call.id, "❌ Это не твоя игра!", show_alert=True)
-            return
-        
-        user_data = get_user_data(user_id)
-        bet = user_data.get("mines_pending_bet", 0)
-        
-        if bet == 0:
-            bot.answer_callback_query(call.id, "❌ Ошибка: ставка не найдена", show_alert=True)
-            return
-        
-        if mines_count not in MINE_CONFIGS:
-            bot.answer_callback_query(call.id, "❌ Неверное количество мин", show_alert=True)
-            return
-        
-        config = MINE_CONFIGS[mines_count]
-        
-        # Начинаем игру с выбранным количеством мин
-        success = start_mines_with_mines_count(user_id, bet, mines_count)
-        
-        if not success:
-            bot.answer_callback_query(call.id, "❌ Ошибка начала игры", show_alert=True)
-            return
-        
-        # Убираем временную ставку
-        if "mines_pending_bet" in user_data:
-            del user_data["mines_pending_bet"]
-            save_casino_data()
-        
-        mention = f'<a href="tg://user?id={user_id}">{call.from_user.first_name}</a>'
-        
-        text = (
-            f"{mention}, игра началась!\n"
-            f"💣 Мин: <b>{mines_count}</b>\n"
-            f"📈 Множитель: <b>x{config['base_multiplier']}</b>"
-        )
-        
-        bot.edit_message_text(
-            text,
-            call.message.chat.id,
-            call.message.message_id,
-            parse_mode="HTML",
-            reply_markup=mines_keyboard(user_id)
-        )
-        
-        bot.answer_callback_query(call.id)
-        
-    except Exception as e:
-        logger.error(f"Ошибка выбора мин: {e}")
-        bot.answer_callback_query(call.id, "❌ Ошибка!", show_alert=True)
-
-@bot.callback_query_handler(func=lambda c: c.data.startswith("mines_pending_cancel_"))
-def mines_pending_cancel_handler(call):
-    """Отмена ожидающей игры"""
-    try:
-        user_id = int(call.data.split("_")[3])
-        
-        if call.from_user.id != user_id:
-            bot.answer_callback_query(call.id, "❌ Это не твоя игра!", show_alert=True)
-            return
-        
-        user_data = get_user_data(user_id)
-        
-        
-        mention = f'<a href="tg://user?id={user_id}">{call.from_user.first_name}</a>'
-        
-        bot.edit_message_text(
-            f"{mention}, выбор отменён.",
-            call.message.chat.id,
-            call.message.message_id,
-            parse_mode="HTML"
-        )
-        
-        bot.answer_callback_query(call.id, "✅ Отменено")
-        
-    except Exception as e:
-        logger.error(f"Ошибка отмены ожидающей игры: {e}")
-        bot.answer_callback_query(call.id, "❌ Ошибка!", show_alert=True)
 
 @bot.callback_query_handler(func=lambda c: c.data.startswith("mines_"))
 def mines_handler(call):
@@ -11645,11 +9226,10 @@ def mines_handler(call):
 
             mention = f'<a href="tg://user?id={user_id}">{call.from_user.first_name}</a>'
             bot.edit_message_text(
-                f"{mention}, игра отменена.",
+                f"{mention}, игра отменена. Деньги возвращены на баланс.",
                 call.message.chat.id,
                 call.message.message_id,
-                parse_mode="HTML",
-                reply_markup=mines_keyboard(user_id, reveal_all=True, hide_buttons=True)
+                parse_mode="HTML"
             )
             bot.answer_callback_query(call.id, "✅ Отменено")
             return
@@ -11658,9 +9238,8 @@ def mines_handler(call):
         if action == "cash" and u["mines_started"]:
             win = int(u["mines_bet"] * u["mines_multiplier"])
             
-            user_game_data = get_user_data(user_id)
-            user_game_data["balance"] += win
-            user_game_data["stage"] = "finished"
+            u["balance"] += win
+            u["stage"] = "finished"
             save_casino_data()
 
             mention = f'<a href="tg://user?id={user_id}">{call.from_user.first_name}</a>'
@@ -11669,7 +9248,7 @@ def mines_handler(call):
             text = (
                 f"🎉 {mention}\n"
                 f"💰 Выигрыш: <b>{format_number(win)}$</b>\n"
-                f"📈 Множитель: <b>x{u['mines_multiplier']:.2f}</b>"
+                f"📈 Итоговый множитель: <b>x{u['mines_multiplier']:.2f}</b>"
             )
             
             bot.edit_message_text(
@@ -11709,8 +9288,7 @@ def mines_handler(call):
                 
                 text = (
                     f"💥 {mention}\n"
-                    f"❌ Проигрыш: <b>{format_number(u['mines_bet'])}$</b>\n"
-                    f"📈 Множитель: <b>x{u['mines_multiplier']:.2f}</b>"
+                    f"❌ Проигрыш: <b>{format_number(u['mines_bet'])}$</b>"
                 )
                 
                 bot.edit_message_text(
@@ -11725,7 +9303,7 @@ def mines_handler(call):
 
             # ✅ БЕЗОПАСНАЯ КЛЕТКА
             # Увеличиваем множитель
-            u["mines_multiplier"] += u.get("mines_config", MINE_CONFIGS.get(u.get("mines_count", 5), MINE_CONFIGS[5]))["multiplier_increment"]
+            u["mines_multiplier"] += CURRENT_MULTIPLIER
             save_casino_data()
 
             # Обновляем клавиатуру
@@ -11733,8 +9311,7 @@ def mines_handler(call):
             
             text = (
                 f"💎 Безопасно!\n"
-                f"💰 Выигрыш: <b>{format_number(current_win)}$</b>\n"
-                f"📈 Множитель: <b>x{u['mines_multiplier']:.2f}</b>"
+                f"💰 Текущий выигрыш: <b>{format_number(current_win)}$</b>"
             )
             
             bot.edit_message_text(
@@ -11745,7 +9322,7 @@ def mines_handler(call):
                 reply_markup=mines_keyboard(user_id)
             )
             
-            bot.answer_callback_query(call.id, f"✅ x{u['mines_multiplier']:.2f}")
+            bot.answer_callback_query(call.id, f"✅ +{CURRENT_MULTIPLIER:.2f} к множителю")
             
         except ValueError:
             # Если action не число, это не клетка
@@ -11753,28 +9330,277 @@ def mines_handler(call):
             
     except Exception as e:
         logger.error(f"Ошибка в обработчике мин: {e}")
-        bot.answer_callback_query(call.id, "❌ Ошибка!", show_alert=True)            
+        bot.answer_callback_query(call.id, "❌ Ошибка!", show_alert=True)
+
+# ================== АДМИН-КОМАНДЫ ДЛЯ НАСТРОЙКИ МИН ==================
+
+@bot.message_handler(func=lambda m: m.text and m.text.lower().startswith("изменить множитель"))
+def admin_change_multiplier(message):
+    """Команда для изменения множителя (только для админов)"""
+    global CURRENT_MULTIPLIER
     
-# ================== КОМАНДЫ "ПОМОЩЬ" И "/help" ==================
+    user_id = message.from_user.id
+    
+    # Проверяем, является ли пользователь админом
+    if user_id not in ADMIN_IDS:
+        # Админ команда - просто игнорируем (бот молчит)
+        return
+    
+    try:
+        parts = message.text.split()
+        if len(parts) < 2:
+            bot.reply_to(message, 
+                        "❌ Использование: изменить множитель [новый множитель]\n"
+                        "Пример: изменить множитель 0.10",
+                        parse_mode="HTML")
+            return
+        
+        new_multiplier = float(parts[2])
+        
+        if new_multiplier <= 0:
+            bot.reply_to(message, "❌ Множитель должен быть больше 0!")
+            return
+        
+        if new_multiplier > 10:
+            bot.reply_to(message, "❌ Множитель не может быть больше 10!")
+            return
+        
+        old_multiplier = CURRENT_MULTIPLIER
+        CURRENT_MULTIPLIER = new_multiplier
+        
+        bot.reply_to(message, 
+                    f"✅ Множитель в игре Mines изменен!\n\n"
+                    f"• Старый множитель: <b>x{old_multiplier:.2f}</b>\n"
+                    f"• Новый множитель: <b>x{new_multiplier:.2f}</b>",
+                    parse_mode="HTML")
+        
+        logger.info(f"Админ {message.from_user.id} изменил множитель Mines с {old_multiplier} на {new_multiplier}")
+        
+    except ValueError:
+        bot.reply_to(message, "❌ Неверный формат! Используйте число (например: 0.10)")
+    except Exception as e:
+        bot.reply_to(message, f"❌ Ошибка: {e}")
+        logger.error(f"Ошибка изменения множителя: {e}")
+
+@bot.message_handler(func=lambda m: m.text and m.text.lower().startswith("изменить мины"))
+def admin_change_mines_count(message):
+    """Команда для изменения количества мин (только для админов)"""
+    global CURRENT_MINES_COUNT
+    
+    user_id = message.from_user.id
+    
+    # Проверяем, является ли пользователь админом
+    if user_id not in ADMIN_IDS:
+        # Админ команда - просто игнорируем (бот молчит)
+        return
+    
+    try:
+        parts = message.text.split()
+        if len(parts) < 3:
+            bot.reply_to(message, 
+                        "❌ Использование: изменить мины [количество]\n"
+                        "Пример: изменить мины 8\n\n"
+                        "Минимальное количество: 1\n"
+                        "Максимальное количество: 24",
+                        parse_mode="HTML")
+            return
+        
+        new_count = int(parts[2])
+        
+        if new_count < 1:
+            bot.reply_to(message, "❌ Количество мин должно быть не меньше 1!")
+            return
+        
+        if new_count > 24:
+            bot.reply_to(message, "❌ Количество мин не может быть больше 24!")
+            return
+        
+        old_count = CURRENT_MINES_COUNT
+        CURRENT_MINES_COUNT = new_count
+        
+        bot.reply_to(message, 
+                    f"✅ Количество мин в игре Mines изменено!\n\n"
+                    f"• Было: <b>{old_count}</b> мин\n"
+                    f"• Стало: <b>{new_count}</b> мин",
+                    parse_mode="HTML")
+        
+        logger.info(f"Админ {message.from_user.id} изменил количество мин с {old_count} на {new_count}")
+        
+    except ValueError:
+        bot.reply_to(message, "❌ Неверный формат! Используйте целое число")
+    except Exception as e:
+        bot.reply_to(message, f"❌ Ошибка: {e}")
+        logger.error(f"Ошибка изменения количества мин: {e}")
+
+@bot.message_handler(func=lambda m: m.text and m.text.lower() == "жудсдвжжа")
+def admin_show_mine_settings(message):
+    """Показывает текущие настройки Mines (только для админов)"""
+    user_id = message.from_user.id
+    
+    # Проверяем, является ли пользователь админом
+    if user_id not in ADMIN_IDS:
+        # Админ команда - просто игнорируем (бот молчит)
+        return
+    
+    bot.reply_to(message,
+                f"⚙️ <b>Текущие настройки Mines:</b>\n\n"
+                f"• Количество мин: <b>{CURRENT_MINES_COUNT}</b>\n"
+                f"• Множитель за клетку: <b>x{CURRENT_MULTIPLIER:.2f}</b>\n"
+                f"• Всего клеток: <b>25</b>\n\n"
+                f"<i>Команды для изменения:</i>\n"
+                f"• <code>изменить мины [количество]</code>\n"
+                f"• <code>изменить множитель [значение]</code>",
+                parse_mode="HTML")
+
+print("✅ Mines 5x5 загружен с настройками:")
+print(f"   • Мин: {CURRENT_MINES_COUNT}")
+print(f"   • Множитель за клетку: x{CURRENT_MULTIPLIER}")
+print("✅ Админ-команды для изменения настроек добавлены")
+
+# ================== 🏎️ НОВАЯ ИГРА "РАЗГОН" (Drag Race) ==================
+# Команда: разгон [ставка]
+# Шанс на победу: 60%, на проигрыш: 40%
+
+# Ссылка на гифку (прямая ссылка на файл, а не на страницу giphy)
+DRAG_RACE_GIF = "https://media4.giphy.com/media/qUSujD5nvtwvdnEbwi/giphy.gif?cid=790b7611k23r4k23r4k23r4k23r4k23r4k23r4k23r4k23r4&ep=v1_gifs_search&rid=giphy.gif&ct=g"
+
+@bot.message_handler(func=lambda m: m.text and m.text.lower().startswith("разгон"))
+def drag_race_game(message):
+    """
+    Игра 'Разгон' с гифкой и результатом через 1 секунду.
+    """
+    try:
+        user_id = message.from_user.id
+        mention = f'<a href="tg://user?id={user_id}">{message.from_user.first_name}</a>'
+        chat_id = message.chat.id
+
+        # 1. Парсим ставку
+        parts = message.text.split()
+        if len(parts) < 2:
+            bot.reply_to(message, "❌ Используй: <code>разгон [ставка]</code>\nПример: <code>разгон 3000</code>", parse_mode="HTML")
+            return
+
+        try:
+            bet = int(parts[1])
+            if bet <= 0:
+                bot.reply_to(message, "❌ Ставка должна быть больше 0!")
+                return
+        except ValueError:
+            bot.reply_to(message, "❌ Ставка должна быть числом!")
+            return
+
+        # 2. Проверяем баланс
+        user_data = get_user_data(user_id)
+        if user_data["balance"] < bet:
+            bot.reply_to(message, "🏧 У тебя не хватает средств.", parse_mode="HTML")
+            return
+
+        # 3. Списываем ставку
+        user_data["balance"] -= bet
+        save_casino_data()
+
+        # 4. Отправляем гифку (без текста)
+        gif_msg = bot.send_animation(chat_id, DRAG_RACE_GIF)
+
+        # 5. Ждем 1 секунду
+        time.sleep(1)
+
+        # 6. Удаляем гифку
+        try:
+            bot.delete_message(chat_id, gif_msg.message_id)
+        except Exception as e:
+            logger.error(f"Не удалось удалить гифку разгона: {e}")
+
+        # 7. Генерируем результат (60% победа, 40% проигрыш)
+        speed = random.randint(90, 320)  # Рандомная скорость
+        is_win = random.random() < 0.6  # 60% шанс на победу
+
+        # 8. Формируем текст результата
+        if is_win:
+            win_amount = bet * 2  # Ставка удвоилась
+            user_data["balance"] += win_amount
+            save_casino_data()
+            result_text = (
+                f"🏎️ {mention}, ты выиграл!\n"
+                f"🚀 Скорость разгона: {speed} км/ч\n"
+                f"💴 Ставка удвоилась, ты получил: {format_number(win_amount)}$"
+            )
+        else:
+            result_text = (
+                f"🏎️ {mention}, ты проиграл.\n"
+                f"🚀 Скорость разгона: {speed} км/ч\n"
+                f"💴 Твоя ставка {format_number(bet)}$ сгорела."
+            )
+
+        # 9. Отправляем результат
+        bot.send_message(chat_id, result_text, parse_mode="HTML")
+
+        logger.info(f"Игра 'Разгон': {user_id} | Ставка: {bet} | Результат: {'win' if is_win else 'lose'} | Скорость: {speed}")
+
+    except Exception as e:
+        logger.error(f"Ошибка в игре 'Разгон': {e}")
+        bot.reply_to(message, "❌ Произошла ошибка во время игры. Попробуйте позже.")
+
+print("✅ Игра 'Разгон' (Drag Race) успешно добавлена!")
+    
+# ================== ПОЛНОСТЬЮ ПЕРЕРАБОТАННАЯ КОМАНДА "ПОМОЩЬ" / "/help" ==================
+# 3 СТРАНИЦЫ ПО 2x2 КНОПКИ, ЗАЩИТА ОТ ЧУЖИХ КНОПОК
+# ВО ВСЕХ РАЗДЕЛАХ ОПИСАНИЯ КОМАНД, КРОМЕ ИГР - ТАМ ТОЛЬКО КОМАНДЫ
+# ДОБАВЛЕН РАЗДЕЛ "РП КОМАНДЫ"
+
+# ---------- НАСТРОЙКА СТРАНИЦ ПОМОЩИ ----------
+HELP_PAGES = {
+    1: [  # Страница 1: 4 раздела
+        ("📋 Команды", "help_cmds"),
+        ("🕹️ Игры", "help_games"),
+        ("💎 VIP", "help_vip"),
+        ("👸 Тянки", "help_tyanki")
+    ],
+    2: [  # Страница 2: 4 раздела
+        ("🐾 Питомцы", "help_pets"),
+        ("💍 Система брака", "help_marriage"),
+        ("⚡ Ивенты", "help_events"),
+        ("💰 Донат", "help_donate")
+    ],
+    3: [  # Страница 3: 2 раздела (можно добавить еще, если нужно)
+        ("🎭 РП команды", "help_rp"),
+        # ("🔮 Будущий раздел", "help_future") # Место для нового раздела
+    ]
+}
+
+# ---------- ФУНКЦИЯ ПРОВЕРКИ ВЛАДЕЛЬЦА КНОПКИ ----------
+def check_help_owner(call, user_id):
+    """Проверяет, что кнопку нажимает её владелец"""
+    if call.from_user.id != user_id:
+        bot.answer_callback_query(call.id, "❌ Это не твоя кнопка!", show_alert=True)
+        return False
+    return True
+
+# ---------- КОМАНДА /help И ПОМОЩЬ ----------
 @bot.message_handler(func=lambda m: m.text and m.text.lower() in ["помощь", "/help@meow_gamechat_bot", "/help"])
-def cmd_pomosh(message):
-    user = message.from_user
-    mention = f"<a href='tg://user?id={user.id}'>{user.first_name}</a>"
+def cmd_help(message):
+    user_id = message.from_user.id
 
-    text = (
-        "📖 <b>ПАНЕЛЬ ПОМОЩИ</b>\n"
-        f"👤 <b>Пользователь:</b> {mention}\n"
-        f"🆔 <b>ID:</b> <code>{user.id}</code>\n\n"
-        "Выберите раздел:"
-    )
+    # Упрощенный текст без ника и ID
+    text = "🍉 <b>Панель помощи в боте</b>\n\nВыбери раздел:"
 
-    # Страница 1: первые 3 кнопки
-    kb = InlineKeyboardMarkup(row_width=1)
-    kb.add(InlineKeyboardButton("Команды", callback_data="help_page_1"))
-    kb.add(InlineKeyboardButton("Игры", callback_data="help_games"))
-    kb.add(InlineKeyboardButton("VIP", callback_data="help_vip"))
-    # Только вперед
-    kb.add(InlineKeyboardButton(" > ", callback_data="help_next_page_2"))
+    # Страница 1: 4 раздела + кнопка Вперёд (без эмодзи)
+    kb = InlineKeyboardMarkup(row_width=2)
+    
+    # Добавляем кнопки разделов по 2 в ряд
+    for i in range(0, len(HELP_PAGES[1]), 2):
+        row = []
+        # Первая кнопка в ряду
+        btn_text, callback = HELP_PAGES[1][i]
+        row.append(InlineKeyboardButton(btn_text, callback_data=f"{callback}_{user_id}"))
+        # Вторая кнопка в ряду (если есть)
+        if i + 1 < len(HELP_PAGES[1]):
+            btn_text2, callback2 = HELP_PAGES[1][i + 1]
+            row.append(InlineKeyboardButton(btn_text2, callback_data=f"{callback2}_{user_id}"))
+        kb.row(*row)
+    
+    # Кнопка Вперёд без эмодзи
+    kb.add(InlineKeyboardButton("Вперёд", callback_data=f"help_next_{user_id}"))
 
     bot.send_message(
         message.chat.id,
@@ -11783,394 +9609,36 @@ def cmd_pomosh(message):
         parse_mode="HTML"
     )
 
-
-# ================== ПАГИНАЦИЯ КНОПОК ПОМОЩИ ==================
-@bot.callback_query_handler(func=lambda c: c.data.startswith("help_next_page_") or c.data.startswith("help_prev_page_"))
-def callback_help_pagination(call):
+# ---------- ОБРАБОТЧИК КНОПКИ ВПЕРЁД (СТРАНИЦА 2) ----------
+@bot.callback_query_handler(func=lambda c: c.data.startswith("help_next_"))
+def help_next_page(call):
     try:
-        if call.data.startswith("help_next_page_"):
-            page_num = int(call.data.split("_")[3])
-            show_help_page(call, page_num)
-        elif call.data.startswith("help_prev_page_"):
-            page_num = int(call.data.split("_")[3])
-            show_help_page(call, page_num)
-            
-        bot.answer_callback_query(call.id)
+        user_id = int(call.data.split("_")[2])
         
-    except Exception as e:
-        logger.error(f"Ошибка в пагинации помощи: {e}")
-        bot.answer_callback_query(call.id, "❌ Ошибка!")
-
-
-def show_help_page(call, page_num):
-    """Показывает конкретную страницу с кнопками помощи"""
-    user = call.from_user
-    mention = f"<a href='tg://user?id={user.id}'>{user.first_name}</a>"
-    
-    text = (
-        "📖 <b>ПАНЕЛЬ ПОМОЩИ</b>\n"
-        f"👤 <b>Пользователь:</b> {mention}\n"
-        f"🆔 <b>ID:</b> <code>{user.id}</code>\n\n"
-        "Выберите раздел:"
-    )
-    
-    kb = InlineKeyboardMarkup(row_width=1)
-    
-    if page_num == 1:
-        # Страница 1: первые 3 кнопки
-        kb.add(InlineKeyboardButton("Команды", callback_data="help_page_1"))
-        kb.add(InlineKeyboardButton("Игры", callback_data="help_games"))
-        kb.add(InlineKeyboardButton("VIP", callback_data="help_vip"))
-        # Только вперед
-        kb.add(InlineKeyboardButton(" > ", callback_data="help_next_page_2"))
-        
-    elif page_num == 2:
-        # Страница 2: следующие 3 кнопки
-        kb.add(InlineKeyboardButton("Тянки", callback_data="help_tyanki"))
-        kb.add(InlineKeyboardButton("Питомцы", callback_data="help_pets"))
-        kb.add(InlineKeyboardButton("Брак", callback_data="help_marriage"))
-        # Назад и вперед
-        kb.row(
-            InlineKeyboardButton(" < ", callback_data="help_prev_page_1"),
-            InlineKeyboardButton(" > ", callback_data="help_next_page_3")
-        )
-        
-    elif page_num == 3:
-        # Страница 3: следующие 3 кнопки
-        kb.add(InlineKeyboardButton("Ивенты", callback_data="help_snow"))
-        kb.add(InlineKeyboardButton("Донат", callback_data="help_donate"))
-        kb.add(InlineKeyboardButton("Поддержка", callback_data="help_support"))
-        # Назад и вперед
-        kb.row(
-            InlineKeyboardButton(" < ", callback_data="help_prev_page_2"),
-            InlineKeyboardButton(" > ", callback_data="help_next_page_4")
-        )
-        
-    elif page_num == 4:
-        # Страница 4: последние кнопки
-        kb.add(InlineKeyboardButton("Канал", url="https://t.me/meow_newsbot"))
-        # Только назад
-        kb.add(InlineKeyboardButton(" < ", callback_data="help_prev_page_3"))
-    
-    bot.edit_message_text(
-        text,
-        call.message.chat.id,
-        call.message.message_id,
-        reply_markup=kb,
-        parse_mode="HTML"
-    )
-
-
-# ================== ПАГИНАЦИЯ КОМАНД ==================
-COMMANDS_PAGES = [
-    {
-        "title": "📋 <b>КОМАНДЫ - СТРАНИЦА 1/3</b>\n━━━━━━━━━━━━━━━━━",
-        "content": """<b>ОСНОВНЫЕ КОМАНДЫ:</b>
-
-<code>моя шахта</code> — главная меню твоей шахты
-<code>копать</code> — копать руду в шахте, альтернативная команда: копать шахту
-<code>/help</code> — помощь
-<code>баланс</code> — баланс
-<code>топ</code> — топ игроков
-<code>бонус</code> — ежедневный бонус
-<code>ферма</code> — фарм валюты
-<code>бот</code> — позвать бота
-
-<b>БАНКОВСКАЯ СИСТЕМА MEOW BANK:</b>
-<code>открыть счёт</code> — создать банковский счет
-<code>мой счёт</code> — показать информацию о счете
-<code>пополнить счёт [сумма]</code> — пополнить счет (например: пополнить счёт 10000)
-<code>удалить счёт</code> — удалить банковский счет
-• Процентная ставка: 1.2% годовых
-• Начисления: ежедневно в 03:00 по МСК
-• Минимальный депозит: 1,000$
-• Пример при 100,000$: ~3.29$ в день, ~100$ в месяц
-
-<b>ПРАВИЛА:</b>
-<code>правила</code> — правила чата
-
-━━━━━━━━━━━━━━━━━"""
-    },
-    {
-        "title": "📋 <b>КОМАНДЫ - СТРАНИЦА 2/3</b>\n━━━━━━━━━━━━━━━━━",
-        "content": """<b>ЭКОНОМИКА:</b>
-
-<code>п [сумма]</code> — перевод суммы другому пользователю (ответьте командой на сообщение того кому хотите перевести)
-<code>промо [код]</code> — промокод
-<code>задонатить [сумма]</code> — пополнить
-<code>мой кабинет</code> — реферальная система
-
-<b>ВЗАИМОДЕЙСТВИЯ:</b>
-<code>рп</code> — список RP-команд
-<code>обнять</code>, <code>поцеловать</code> — RP команды
-
-━━━━━━━━━━━━━━━━━"""
-    },
-    {
-        "title": "📋 <b>КОМАНДЫ - СТРАНИЦА 3/3</b>\n━━━━━━━━━━━━━━━━━",
-        "content": """<b>МАГАЗИНЫ:</b>
-
-<code>вип</code> — VIP магазин
-<code>магазин питомцев</code> — питомцы
-<code>магазин тянок</code> — тянки
-<code>магазин машин</code> — машины
-<code>магазин домов</code> — список домов для покупки
-
-<b>ИНФОРМАЦИЯ:</b>
-
-<code>мой питомец</code> — питомец
-<code>мой дом</code> — информация про ваш дом
-<code>продать дом (название дома)</code> — продать свой текущий дом
-<code>моя тянка</code> — тянка
-<code>моя машина</code> — машина
-<code>мой бизнес</code> — бизнес
-<code>мой брак</code> — брак
-<code>браки</code> — все браки
-<code>мой профиль</code> — снежки
-
-━━━━━━━━━━━━━━━━━"""
-    }
-]
-
-
-# ================== ОБРАБОТЧИК ПАГИНАЦИИ КОМАНД ==================
-@bot.callback_query_handler(func=lambda c: c.data.startswith("help_page_"))
-def callback_commands_page(call):
-    try:
-        page_num = int(call.data.split("_")[2]) - 1
-        if page_num < 0:
-            page_num = 0
-        if page_num >= len(COMMANDS_PAGES):
-            page_num = len(COMMANDS_PAGES) - 1
-        
-        page = COMMANDS_PAGES[page_num]
-        
-        kb = InlineKeyboardMarkup(row_width=3)
-        
-        # Кнопки навигации
-        nav_buttons = []
-        if page_num > 0:
-            nav_buttons.append(InlineKeyboardButton(" < ", callback_data=f"help_page_{page_num}"))
-        
-        nav_buttons.append(InlineKeyboardButton(f"{page_num+1}/{len(COMMANDS_PAGES)}", callback_data="no_action"))
-        
-        if page_num < len(COMMANDS_PAGES) - 1:
-            nav_buttons.append(InlineKeyboardButton(" > ", callback_data=f"help_page_{page_num+2}"))
-        
-        kb.row(*nav_buttons)
-        kb.add(InlineKeyboardButton("В главное меню", callback_data="back_to_help_main"))
-        
-        bot.edit_message_text(
-            f"{page['title']}\n\n{page['content']}",
-            call.message.chat.id,
-            call.message.message_id,
-            reply_markup=kb,
-            parse_mode="HTML"
-        )
-        
-        bot.answer_callback_query(call.id)
-        
-    except Exception as e:
-        logger.error(f"Ошибка в пагинации команд: {e}")
-        bot.answer_callback_query(call.id, "❌ Ошибка!")
-
-
-# ================== ОБРАБОТЧИКИ ДРУГИХ РАЗДЕЛОВ ==================
-@bot.callback_query_handler(func=lambda c: c.data.startswith("help_") and not c.data.startswith("help_page_") and not c.data.startswith("help_next_page_") and not c.data.startswith("help_prev_page_"))
-def callback_help_sections(call):
-    try:
-        if call.data == "no_action":
-            bot.answer_callback_query(call.id)
-            return
-            
-        section = call.data.split("_")[1]
-        
-        # Остальные разделы с чистым текстом
-        if section == "games":
-            text = (
-    "<b>ИГРЫ</b>\n━━━━━━━━━━━━━━━━━━━\n\n"
-    
-    "<b>КАЗИНО:</b>\n"
-    "• <code>играть [ставка]</code> — Блэкджек\n"
-    "• <code>дверь [ставка]</code> — игра в двери, в 4 бомба, в 2 +0.50 к ставке, альтернативная команда: дв [ставка]\n"
-    "• <code>слот [ставка]</code> — игра в слоты\n"
-    "• <code>рулетка [ставка]</code> — Рулетка\n"
-    "   ├─ к/ч (красное/черное)\n"
-    "   ├─ 1-36 (ставьте на числа)\n"
-    "   └─ <code>го</code> — начинает игру\n"
-    "• <code>мины [ставка]</code> — Мины\n\n"
-    
-    "<b>СПОРТИВНЫЕ:</b>\n"
-    "• <code>рб [ставка] [орёл/решка]</code> — Монетка\n"
-    "• <code>футбол [ставка]</code> — Футбол\n"
-    "   ├─ Анимация с мячом и воротами ⚽🥅\n"
-    "   ├─ Шанс: 50/50\n"
-    "   └─ При победе: ×2 ставки\n"
-    "• <code>баскетбол [ставка]</code> — Баскетбол\n"
-    "   ├─ Анимация с мячом и корзиной 🏀🏀\n"
-    "   ├─ Шанс: 50/50\n"
-    "   └─ При победе: ×2 ставки\n"
-    "• <code>тир [ставка]</code> — Тир\n"
-    "   ├─ Анимация с дротиком и мишенью 🎯🎯\n"
-    "   ├─ Шанс: 50/50\n"
-    "   └─ При победе: ×2 ставки\n"
-    "• <code>кнб</code> — Крестики-нолики (только ответом на сообщение пользователя)\n\n"
-    
-    "<b>ИГРА 1 НА 1:</b>\n"
-    "• <code>кубик [ставка]</code> — Кубик (ответом на сообщение)\n"
-    "   ├─ Брось кубик против соперника 🎲\n"
-    "   ├─ У кого больше число - тот победил\n"
-    "   ├─ Выигрыш: все деньги (обе ставки)\n"
-    "   └─ При ничье: деньги возвращаются\n\n"
-    
-    "<b>ВЫИГРЫШИ:</b>\n"
-    "• Победа в казино: ×2 ставки\n"
-    "• Спортивные игры: ×2 ставки\n"
-    "• Кубик: все деньги (обе ставки)\n"
-    "━━━━━━━━━━━━━━━━━━━"
-)
-            
-        elif section == "vip":
-            text = (
-                "<b>VIP СИСТЕМА</b>\n━━━━━━━━━━━━━━━━━━━\n\n"
-                
-                "<b>ПРЕИМУЩЕСТВА:</b>\n"
-                "• Пассивный доход каждые 3 часа\n"
-                "• Бонус +5%—40% ко всем доходам\n"
-                "• Эксклюзивный статус\n\n"
-                
-                "<b>СТОИМОСТЬ:</b>\n"
-                "• VIP 1: 250,000$\n"
-                "• VIP 2: 500,000$\n"
-                "• VIP 3: 750,000$\n"
-                "• VIP 4: 1,000,000$\n"
-                "• VIP 5: 1,250,000$\n"
-                "• VIP 6: 1,500,000$\n"
-                "• VIP 7: 1,750,000$\n\n"
-                
-                "<b>ДОХОД В 3 ЧАСА:</b>\n"
-                "• VIP 1: 1,000$\n"
-                "• VIP 7: 20,000$\n\n"
-                
-                "<b>КОМАНДА:</b>\n"
-                "<code>вип</code>\n"
-                "━━━━━━━━━━━━━━━━━━━"
-            )
-            
-        elif section == "tyanki":
-            text = (
-                "<b>ТЯНКИ</b>\n━━━━━━━━━━━━━━━━━━━\n\n"
-                
-                "<b>КОМАНДЫ:</b>\n"
-                "<code>магазин тянок</code> — магазин\n"
-                "<code>купить тянку [номер]</code> — купить\n"
-                "<code>моя тянка</code> — информация\n"
-                "<code>продать тянку</code> — продать\n"
-                "━━━━━━━━━━━━━━━━━━━"
-            )
-            
-        elif section == "pets":
-            text = (
-                "<b>ПИТОМЦЫ</b>\n━━━━━━━━━━━━━━━━━━━\n\n"
-                
-                "<b>КОМАНДЫ:</b>\n"
-                "<code>магазин питомцев</code> — магазин чтобы купить питомца\n"
-                "<code>купить питомца [номер]</code> — купить определенного питомца\n"
-                "<code>мой питомец</code> — информация про питомца\n"
-                "<code>продать питомца</code> — продать своего питомца\n"
-                "━━━━━━━━━━━━━━━━━━━"
-            )
-            
-        elif section == "marriage":
-            text = (
-                "<b>БРАК</b>\n━━━━━━━━━━━━━━━━━━━\n\n"
-                
-                "<b>КОМАНДЫ:</b>\n"
-                "<code>+брак</code> — предложить (ответом)\n"
-                "<code>+брак [ID]</code> — по ID - не работает временно\n"
-                "<code>мой брак</code> — информация\n"
-                "<code>браки</code> — все браки\n"
-                "━━━━━━━━━━━━━━━━━━━"
-            )
-            
-        elif section == "donate":
-            text = (
-                "<b>ДОНАТ</b>\n━━━━━━━━━━━━━━━━━━━\n\n"
-                
-                "<b>ПОПОЛНЕНИЕ:</b>\n"
-                "<code>задонатить [сумма]</code>\n\n"
-                
-                "<b>ПОДДЕРЖКА:</b>\n"
-                "@parvizwp\n"
-                "━━━━━━━━━━━━━━━━━━━"
-            )
-            
-        elif section == "snow":
-            text = (
-    "<b>🎮 ИГРЫ И ИВЕНТЫ</b>\n━━━━━━━━━━━━━━━━━━━\n\n"
-    
-    "<b>❄️ СНЕЖКИ (новогодний ивент):</b>\n"
-    "<code>снежок</code> — слепить снежок\n"
-    "<code>мой профиль</code> — статистика снежков\n"
-    "<code>ежедневный</code> — ежедневная награда\n"
-    "<code>топ снежков</code> — топ игроков\n"
-    "<code>снежный топ</code> — альтернативная команда\n\n"
-    
-    "<b>🗑️ СБОР МУСОРА (новый ивент):</b>\n"
-    "<code>начать сборку мусора</code> — начать сбор\n"
-    "<code>сборка мусора</code> — альтернативная команда\n"
-    "<code>мой инвентарь</code> — показать найденное\n"
-    "<code>мой инв</code> — краткая команда\n\n"
-    
-    "<b>📊 КУРС ОБМЕНА:</b>\n"
-    "• ❄️ 1 снежок = 50$\n"
-    "• 🌟 1 золотой снежок = 250$\n"
-    "• 🎯 5% шанс на золотой снежок\n\n"
-    
-    "<b>💰 НАЙТИ МОЖНО:</b>\n"
-    "• 🍂 Листья\n"
-    "• 🥤 Бутылка\n"
-    "• 📰 Бумага\n"
-    "• 📱 Телефон\n"
-    "• 💍 Кольцо\n"
-    "• и другие предметы...\n\n"
-    
-    "<i>💫 Каждые 2 секунды можно собирать мусор!\n"
-    "🎁 80% шанс найти что-то ценное!</i>\n"
-    "━━━━━━━━━━━━━━━━━━━"
-)
-            
-        elif section == "support":
-            text = (
-                "<b>ПОДДЕРЖКА</b>\n━━━━━━━━━━━━━━━━━━━\n\n"
-                
-                "<b>РАЗРАБОТЧИК:</b>\n"
-                "@parvizwp\n\n"
-                
-                "<b>ЧТО УКАЗАТЬ:</b>\n"
-                "• Ваш ID: <code>{}</code>\n"
-                "• Описание проблемы\n"
-                "• Скриншоты\n"
-                "━━━━━━━━━━━━━━━━━━━".format(call.from_user.id)
-            )
-            
-            # Для поддержки добавляем кнопку
-            kb = InlineKeyboardMarkup()
-            kb.add(InlineKeyboardButton("Написать разработчику", url="https://t.me/parvizwp"))
-            kb.add(InlineKeyboardButton("В главное меню", callback_data="back_to_help_main"))
-            
-            bot.edit_message_text(
-                text,
-                call.message.chat.id,
-                call.message.message_id,
-                reply_markup=kb,
-                parse_mode="HTML"
-            )
+        if not check_help_owner(call, user_id):
             return
         
-        # Общая клавиатура для всех разделов
-        kb = InlineKeyboardMarkup()
-        kb.add(InlineKeyboardButton("В главное меню", callback_data="back_to_help_main"))
+        text = "🍉 <b>Панель помощи в боте - СТРАНИЦА 2/3</b>\n\nВыбери раздел:"
+        
+        kb = InlineKeyboardMarkup(row_width=2)
+        
+        # Добавляем кнопки разделов по 2 в ряд
+        for i in range(0, len(HELP_PAGES[2]), 2):
+            row = []
+            # Первая кнопка в ряду
+            btn_text, callback = HELP_PAGES[2][i]
+            row.append(InlineKeyboardButton(btn_text, callback_data=f"{callback}_{user_id}"))
+            # Вторая кнопка в ряду (если есть)
+            if i + 1 < len(HELP_PAGES[2]):
+                btn_text2, callback2 = HELP_PAGES[2][i + 1]
+                row.append(InlineKeyboardButton(btn_text2, callback_data=f"{callback2}_{user_id}"))
+            kb.row(*row)
+        
+        # Кнопки навигации (без эмодзи)
+        kb.add(
+            InlineKeyboardButton("Назад", callback_data=f"help_back_{user_id}"),
+            InlineKeyboardButton("Вперёд", callback_data=f"help_next_2_{user_id}")
+        )
         
         bot.edit_message_text(
             text,
@@ -12179,42 +9647,461 @@ def callback_help_sections(call):
             reply_markup=kb,
             parse_mode="HTML"
         )
-        
         bot.answer_callback_query(call.id)
         
     except Exception as e:
-        logger.error(f"Ошибка в разделе помощи: {e}")
-        bot.answer_callback_query(call.id, "❌ Ошибка!")
+        logger.error(f"Ошибка help_next_page: {e}")
+        bot.answer_callback_query(call.id, "❌ Ошибка!", show_alert=True)
+
+# ---------- ОБРАБОТЧИК КНОПКИ ВПЕРЁД (СТРАНИЦА 3) ----------
+@bot.callback_query_handler(func=lambda c: c.data.startswith("help_next_2_"))
+def help_next_page_2(call):
+    try:
+        user_id = int(call.data.split("_")[3])
+        
+        if not check_help_owner(call, user_id):
+            return
+        
+        text = "🍉 <b>Панель помощи в боте - СТРАНИЦА 3/3</b>\n\nВыбери раздел:"
+        
+        kb = InlineKeyboardMarkup(row_width=2)
+        
+        # Добавляем кнопки разделов по 2 в ряд
+        for i in range(0, len(HELP_PAGES[3]), 2):
+            row = []
+            # Первая кнопка в ряду
+            btn_text, callback = HELP_PAGES[3][i]
+            row.append(InlineKeyboardButton(btn_text, callback_data=f"{callback}_{user_id}"))
+            # Вторая кнопка в ряду (если есть)
+            if i + 1 < len(HELP_PAGES[3]):
+                btn_text2, callback2 = HELP_PAGES[3][i + 1]
+                row.append(InlineKeyboardButton(btn_text2, callback_data=f"{callback2}_{user_id}"))
+            kb.row(*row)
+        
+        # Кнопка Назад (без эмодзи)
+        kb.add(InlineKeyboardButton("Назад", callback_data=f"help_back_2_{user_id}"))
+        
+        bot.edit_message_text(
+            text,
+            call.message.chat.id,
+            call.message.message_id,
+            reply_markup=kb,
+            parse_mode="HTML"
+        )
+        bot.answer_callback_query(call.id)
+        
+    except Exception as e:
+        logger.error(f"Ошибка help_next_page_2: {e}")
+        bot.answer_callback_query(call.id, "❌ Ошибка!", show_alert=True)
+
+# ---------- ОБРАБОТЧИК КНОПКИ НАЗАД (СО СТРАНИЦЫ 3 НА СТРАНИЦУ 2) ----------
+@bot.callback_query_handler(func=lambda c: c.data.startswith("help_back_2_"))
+def help_back_page_2(call):
+    try:
+        user_id = int(call.data.split("_")[3])
+        
+        if not check_help_owner(call, user_id):
+            return
+        
+        text = "🍉 <b>Панель помощи в боте - СТРАНИЦА 2/3</b>\n\nВыбери раздел:"
+        
+        kb = InlineKeyboardMarkup(row_width=2)
+        
+        # Добавляем кнопки разделов по 2 в ряд
+        for i in range(0, len(HELP_PAGES[2]), 2):
+            row = []
+            # Первая кнопка в ряду
+            btn_text, callback = HELP_PAGES[2][i]
+            row.append(InlineKeyboardButton(btn_text, callback_data=f"{callback}_{user_id}"))
+            # Вторая кнопка в ряду (если есть)
+            if i + 1 < len(HELP_PAGES[2]):
+                btn_text2, callback2 = HELP_PAGES[2][i + 1]
+                row.append(InlineKeyboardButton(btn_text2, callback_data=f"{callback2}_{user_id}"))
+            kb.row(*row)
+        
+        # Кнопки навигации (без эмодзи)
+        kb.add(
+            InlineKeyboardButton("Назад", callback_data=f"help_back_{user_id}"),
+            InlineKeyboardButton("Вперёд", callback_data=f"help_next_2_{user_id}")
+        )
+        
+        bot.edit_message_text(
+            text,
+            call.message.chat.id,
+            call.message.message_id,
+            reply_markup=kb,
+            parse_mode="HTML"
+        )
+        bot.answer_callback_query(call.id)
+        
+    except Exception as e:
+        logger.error(f"Ошибка help_back_page_2: {e}")
+        bot.answer_callback_query(call.id, "❌ Ошибка!", show_alert=True)
+
+# ---------- ОБРАБОТЧИК КНОПКИ НАЗАД (СО СТРАНИЦЫ 2 НА СТРАНИЦУ 1) ----------
+@bot.callback_query_handler(func=lambda c: c.data.startswith("help_back_"))
+def help_back_page(call):
+    try:
+        user_id = int(call.data.split("_")[2])
+        
+        if not check_help_owner(call, user_id):
+            return
+        
+        text = "🍉 <b>Панель помощи в боте</b>\n\nВыбери раздел:"
+        
+        kb = InlineKeyboardMarkup(row_width=2)
+        
+        # Добавляем кнопки разделов по 2 в ряд
+        for i in range(0, len(HELP_PAGES[1]), 2):
+            row = []
+            # Первая кнопка в ряду
+            btn_text, callback = HELP_PAGES[1][i]
+            row.append(InlineKeyboardButton(btn_text, callback_data=f"{callback}_{user_id}"))
+            # Вторая кнопка в ряду (если есть)
+            if i + 1 < len(HELP_PAGES[1]):
+                btn_text2, callback2 = HELP_PAGES[1][i + 1]
+                row.append(InlineKeyboardButton(btn_text2, callback_data=f"{callback2}_{user_id}"))
+            kb.row(*row)
+        
+        # Кнопка Вперёд (без эмодзи)
+        kb.add(InlineKeyboardButton("Вперёд", callback_data=f"help_next_{user_id}"))
+        
+        bot.edit_message_text(
+            text,
+            call.message.chat.id,
+            call.message.message_id,
+            reply_markup=kb,
+            parse_mode="HTML"
+        )
+        bot.answer_callback_query(call.id)
+        
+    except Exception as e:
+        logger.error(f"Ошибка help_back_page: {e}")
+        bot.answer_callback_query(call.id, "❌ Ошибка!", show_alert=True)
+
+# ---------- ОБРАБОТЧИК РАЗДЕЛОВ ПОМОЩИ ----------
+@bot.callback_query_handler(func=lambda c: c.data.startswith(("help_cmds_", "help_games_", "help_vip_", "help_tyanki_", 
+                                                              "help_pets_", "help_marriage_", "help_events_", "help_donate_",
+                                                              "help_rp_")))
+def help_section_handler(call):
+    try:
+        parts = call.data.split("_")
+        section = parts[1]
+        user_id = int(parts[2])
+        
+        if not check_help_owner(call, user_id):
+            return
+        
+        if section == "cmds":
+            content = HELP_CONTENT["cmds"]
+        elif section == "games":
+            content = HELP_CONTENT["games"]
+        elif section == "vip":
+            content = HELP_CONTENT["vip"]
+        elif section == "tyanki":
+            content = HELP_CONTENT["tyanki"]
+        elif section == "pets":
+            content = HELP_CONTENT["pets"]
+        elif section == "marriage":
+            content = HELP_CONTENT["marriage"]
+        elif section == "events":
+            content = HELP_CONTENT["events"]
+        elif section == "donate":
+            content = HELP_CONTENT["donate"].format(user_id=user_id)
+        elif section == "rp":
+            content = HELP_CONTENT["rp"]
+        else:
+            content = "❌ Раздел не найден"
+        
+        kb = InlineKeyboardMarkup()
+        
+        # Определяем, на какую страницу возвращаться
+        if section in ["cmds", "games", "vip", "tyanki"]:
+            kb.add(InlineKeyboardButton("Назад", callback_data=f"help_back_{user_id}"))
+        elif section in ["pets", "marriage", "events", "donate"]:
+            kb.add(InlineKeyboardButton("Назад", callback_data=f"help_back_2_{user_id}"))
+        elif section == "rp":
+            kb.add(InlineKeyboardButton("Назад", callback_data=f"help_back_2_{user_id}"))
+        
+        bot.edit_message_text(
+            content,
+            call.message.chat.id,
+            call.message.message_id,
+            reply_markup=kb,
+            parse_mode="HTML"
+        )
+        bot.answer_callback_query(call.id)
+        
+    except Exception as e:
+        logger.error(f"Ошибка help_section_handler: {e}")
+        bot.answer_callback_query(call.id, "❌ Ошибка!", show_alert=True)
+
+# ---------- ТЕКСТЫ ДЛЯ РАЗДЕЛОВ ----------
+# ВО ВСЕХ РАЗДЕЛАХ ЕСТЬ ОПИСАНИЯ КОМАНД, КРОМЕ "ИГРЫ" - ТАМ ТОЛЬКО КОМАНДЫ
+HELP_CONTENT = {
+    # ----- КОМАНДЫ (СТРАНИЦА 1) - С ОПИСАНИЯМИ -----
+    "cmds": """
+📋 <b>Основные команды</b>
+━━━━━━━━━━━━━━━━━━━
+
+[💰] <b>баланс</b> / <b>б</b> — твой текущий баланс
+[🏆] <b>топ</b> — топ-50 игроков по балансу
+[🍉] <b>мой профиль</b> — профиль с краткой информацией
+[🎁] <b>бонус</b> — ежедневный бонус (1000-15000$)
+[🚜] <b>ферма</b> — фарм валюты (раз в 2 часа)
+[💸] <b>п [сумма]</b> — перевод денег (ответом)
+[🎫] <b>промо [название]</b> — активировать промокод
+[⭐] <b>задонатить [сумма]</b> — пополнить через Telegram Stars
+
+<b>🏦MEOW BANK:</b>
+[🏛] <b>открыть счёт</b> — создать банковский счет (1.2% годовых)
+[📊] <b>мой счёт</b> — информация о банковском счете
+[📥] <b>пополнить счёт [сумма]</b> — внести деньги на счет
+[📤] <b>удалить счёт</b> — закрыть банковский счет
+
+<b>⚙️ ПРОЧЕЕ:</b>
+[📖] <b>правила бота</b> — правила бота для ознакомления
+[🤖] <b>бот</b> — позвать бота
+[🎭] <b>рп</b> — список RP-команд
+
+━━━━━━━━━━━━━━━━━━━
+""",
+
+    # ----- ИГРЫ (СТРАНИЦА 1) - ТОЛЬКО КОМАНДЫ, БЕЗ ОПИСАНИЙ -----
+    "games": """
+ <b>🕹️ Игры 🕹️</b>
+━━━━━━━━━━━━━━━━━━━
+
+[🃏] <b>играть [ставка]</b>
+[🎰] <b>слот [ставка]</b>
+[🏎️] <b>разгон [ставка]</b>
+[💣] <b>мины [ставка]</b>
+[🔴] <b>[ставка] к/ч | Ставка на красное или чёрное</b>
+[🔢] <b>[ставка] 1-36 | Ставки на числа и диапозон</b>
+[⚽] <b>футбол [ставка]</b>
+[🏀] <b>баскетбол [ставка]</b>
+[🏀] <b>бс [ставка]</b>
+[🎯] <b>тир [ставка]</b>
+[🪙] <b>рб [ставка] [орёл/решка]</b>
+[🎲] <b>кубик [ставка]</b>
+[❌⭕] <b>кнб [ставка]</b>
+
+""",
+
+    # ----- VIP (СТРАНИЦА 1) - С ОПИСАНИЯМИ -----
+    "vip": """
+💎 <b>VIP Система</b>
+━━━━━━━━━━━━━━━━━━━
+
+<b>🥉 VIP 1 - Bronze</b>
+[💳] <b>вип</b> / <b>vip</b> — открыть магазин VIP
+[💰] <b>250,000$</b> — стоимость
+[📈] +5% бонус к доходу
+[⏱] 1,000$ / 3 часа
+
+<b>🥈 VIP 2 - Silver</b>
+[💰] <b>500,000$</b> — стоимость
+[📈] +10% бонус к доходу
+[⏱] 2,500$ / 3 часа
+
+<b>🥇 VIP 3 - Gold</b>
+[💰] <b>750,000$</b> — стоимость
+[📈] +15% бонус к доходу
+[⏱] 5,000$ / 3 часа
+
+<b>💎 VIP 4 - Platinum</b>
+[💰] <b>1,000,000$</b> — стоимость
+[📈] +20% бонус к доходу
+[⏱] 8,000$ / 3 часа
+
+<b>🔹 VIP 5 - Diamond</b>
+[💰] <b>1,250,000$</b> — стоимость
+[📈] +25% бонус к доходу
+[⏱] 11,000$ / 3 часа
+
+<b>👑 VIP 6 - Master</b>
+[💰] <b>1,500,000$</b> — стоимость
+[📈] +30% бонус к доходу
+[⏱] 14,000$ / 3 часа
+
+<b>🔥 VIP 7 - Legend</b>
+[💰] <b>1,750,000$</b> — стоимость
+[📈] +40% бонус к доходу
+[⏱] 20,000$ / 3 часа
+
+""",
+
+    # ----- ТЯНКИ (СТРАНИЦА 1) - С ОПИСАНИЯМИ -----
+    "tyanki": """
+🏧 <b>Тянки</b>
+━━━━━━━━━━━━━━━━━━━
+
+<b>🛍 КОМАНДЫ:</b>
+[🏪] <b>магазин тянок</b> — посмотреть всех тянок
+[💝] <b>купить тянку [имя]</b> — купить тянку
+[👩] <b>моя тянка</b> — информация о тянке
+
+<b>📊 ДОСТУПНЫЕ ТЯНКИ:</b>
+[⚪] <b>катя</b> — 60,000$ | 600$/ч
+[🟢] <b>соня</b> — 100,000$ | 1,000$/ч
+[🟣] <b>айсель</b> — 300,000$ | 1,500$/ч
+[🟡] <b>эля</b> — 1,000,000$ | 2,000$/ч
+[🟡] <b>даша</b> — 2,500,000$ | 3,500$/ч
+[🔥] <b>ангелина</b> — 15,000,000$ | 8,000$/ч
+[🌈] <b>виктория</b> — 30,000,000$ | 15,000$/ч
+[💎] <b>миранда</b> — 50,000,000$ | 25,000$/ч
+[🌌] <b>сатори</b> — 100,000,000$ | 40,000$/ч
+[👑] <b>изабелла</b> — 250,000,000$ | 75,000$/ч
+[✨] <b>хельга</b> — 500,000,000$ | 125,000$/ч
+
+""",
+
+    # ----- ПИТОМЦЫ (СТРАНИЦА 2) - С ОПИСАНИЯМИ -----
+    "pets": """
+🐾 <b>ПИТОМЦЫ</b>
+━━━━━━━━━━━━━━━━━━━
+
+<b>🛍 КОМАНДЫ:</b>
+[🏪] <b>магазин питомцев</b> — посмотреть всех питомцев
+[🐕] <b>купить питомца [номер]</b> — купить питомца
+[🐈] <b>мой питомец</b> — информация о питомце
+
+<b>⭐ РЕДКОСТИ</b>
+[⚪] Обычный 
+[🔵] Редкий
+[🟣] Эпический
+[🟡] Легендарный
+[🔴] Мифический
+
+<b>📊 ДОСТУПНЫЕ ПИТОМЦЫ:</b>
+[⚪] <b>1. Кошка</b> — 10,000$
+[⚪] <b>2. Собака</b> — 20,000$
+[⚪] <b>6. Хомяк</b> — 5,000$
+[🔵] <b>3. Попугай</b> — 50,000$
+[🔵] <b>4. Кролик</b> — 100,000$
+[🟣] <b>5. Коровка</b> — 250,000$
+[🟣] <b>7. Лошадь</b> — 100,000$
+[🟡] <b>8. Фенек</b> — 150,000$
+[🔴] <b>9. Дракон</b> — 500,000$
+[🔴] <b>10. Феникс</b> — 750,000$
+
+""",
+
+    # ----- БРАК (СТРАНИЦА 2) - С ОПИСАНИЯМИ -----
+    "marriage": """
+💍 <b>Система брака</b>
+━━━━━━━━━━━━━━━━━━━
+
+<b>💌 КОМАНДЫ:</b>
+[💞] <b>+брак</b> — предложить брак (ответом)
+[💒] <b>мой брак</b> — информация о текущем браке
+[📜] <b>браки</b> — список всех активных браков
+
+<b>🏆 РАНГИ ОТНОШЕНИЙ:</b>
+[💕] <b>Начало отношений</b> — 0-30 дней
+[🌹] <b>Романтический период</b> — 30-180 дней
+[🍯] <b>Медовый месяц</b> — 180-365 дней
+[📜] <b>Бумажная свадьба</b> — 1 год
+[💍] <b>Стеклянная свадьба</b> — 2 года
+[💎] <b>Сапфировая свадьба</b> — 5 лет
+[👑] <b>Золотая свадьба</b> — 10+ лет
+
+""",
+
+    # ----- ИВЕНТЫ (СТРАНИЦА 2) - С ОПИСАНИЯМИ -----
+    "events": """
+🏧 <b>Ивенты</b>
+━━━━━━━━━━━━━━━━━━━
+
+<b>🗑 СБОР МУСОРА:</b>
+[🗑] <b>начать сборку мусора</b> — начать сбор мусора
+[🗑] <b>сборка мусора</b> — альтернативная команда
+[📦] <b>мой инвентарь</b> — посмотреть найденные предметы
 
 
-# ================== ВОЗВРАТ В ГЛАВНОЕ МЕНЮ ПОМОЩИ ==================
+<b>⛏ ШАХТА:</b>
+[⛏] <b>моя шахта</b> — главное меню шахты
+[🔨] <b>копать</b> — добывать руду
+
+""",
+
+    # ----- ДОНАТ (СТРАНИЦА 2) - С ОПИСАНИЯМИ -----
+    "donate": """
+💰 <b>Донат и поддержка</b>
+━━━━━━━━━━━━━━━━━━━
+
+<b>⭐ ПОПОЛНЕНИЕ:</b>
+[💸] <b>задонатить [сумма]</b> — пополнить баланс через Telegram Stars
+└ Курс: 1⭐ = 7,000$
+
+<b>🛠 ПОДДЕРЖКА:</b>
+[👨‍💻] <b>Разработчик:</b> Пармиджано
+[💬] <b>Чат бота:</b> @meowchatgame
+[📢] <b>Канал:</b> @meow_newsbot
+
+""",
+
+    # ----- РП КОМАНДЫ (СТРАНИЦА 3) - ТОЛЬКО КОМАНДЫ -----
+    "rp": """
+<b>🎭 РП КОМАНДЫ</b>
+━━━━━━━━━━━━━━━━━━━
+
+[🤗] <b>обнять</b>
+[😘] <b>поцеловать</b>
+[✨] <b>погладить</b>
+[🪶] <b>пощекотать</b>
+[🎁] <b>подарить</b>
+[👊] <b>ударить</b>
+[🖐️] <b>шлёпнуть</b>
+[🥊] <b>избить</b>
+[🥷] <b>украсть</b>
+[🍆] <b>выебать</b>
+[🔥] <b>трахнуть</b>
+[👅] <b>отсосать</b>
+[💦] <b>отлизать</b>
+[🚬] <b>закурить</b>
+
+💬 <i>Работают только ответом на сообщение</i>
+"""
+}
+
+# ---------- ВОЗВРАТ В ГЛАВНОЕ МЕНЮ (ОПЦИОНАЛЬНО) ----------
 @bot.callback_query_handler(func=lambda c: c.data == "back_to_help_main")
-def callback_back_to_help_main(call):
-    user = call.from_user
-    mention = f"<a href='tg://user?id={user.id}'>{user.first_name}</a>"
-
-    text = (
-        "📖 <b>ПАНЕЛЬ ПОМОЩИ</b>\n"
-        f"👤 <b>Пользователь:</b> {mention}\n"
-        f"🆔 <b>ID:</b> <code>{user.id}</code>\n\n"
-        "Выберите раздел:"
-    )
-
-    # Показываем первую страницу
-    kb = InlineKeyboardMarkup(row_width=1)
-    kb.add(InlineKeyboardButton("Команды", callback_data="help_page_1"))
-    kb.add(InlineKeyboardButton("Игры", callback_data="help_games"))
-    kb.add(InlineKeyboardButton("VIP", callback_data="help_vip"))
-    kb.add(InlineKeyboardButton(" > ", callback_data="help_next_page_2"))
-
-    bot.edit_message_text(
-        text,
-        call.message.chat.id,
-        call.message.message_id,
-        reply_markup=kb,
-        parse_mode="HTML"
-    )
-    bot.answer_callback_query(call.id)
+def back_to_help_main(call):
+    try:
+        user_id = call.from_user.id
+        
+        text = "🍉 <b>Панель помощи в боте</b>\n\nВыбери раздел:"
+        
+        kb = InlineKeyboardMarkup(row_width=2)
+        
+        # Добавляем кнопки разделов по 2 в ряд
+        for i in range(0, len(HELP_PAGES[1]), 2):
+            row = []
+            # Первая кнопка в ряду
+            btn_text, callback = HELP_PAGES[1][i]
+            row.append(InlineKeyboardButton(btn_text, callback_data=f"{callback}_{user_id}"))
+            # Вторая кнопка в ряду (если есть)
+            if i + 1 < len(HELP_PAGES[1]):
+                btn_text2, callback2 = HELP_PAGES[1][i + 1]
+                row.append(InlineKeyboardButton(btn_text2, callback_data=f"{callback2}_{user_id}"))
+            kb.row(*row)
+        
+        # Кнопка Вперёд (без эмодзи)
+        kb.add(InlineKeyboardButton("Вперёд", callback_data=f"help_next_{user_id}"))
+        
+        bot.edit_message_text(
+            text,
+            call.message.chat.id,
+            call.message.message_id,
+            reply_markup=kb,
+            parse_mode="HTML"
+        )
+        bot.answer_callback_query(call.id)
+        
+    except Exception as e:
+        logger.error(f"Ошибка back_to_help_main: {e}")
+        bot.answer_callback_query(call.id, "❌ Ошибка!", show_alert=True)
 
 
 # ================== ОБРАБОТКА КНОПКИ ОТМЕНЫ ==================
@@ -14840,123 +12727,9 @@ def admin_back(call):
     except Exception as e:
         bot.answer_callback_query(call.id, f"❌ Ошибка: {e}")
 
-# ================== ИЗМЕНЕНИЕ НАСТРОЕК МИН ==================
-
-@bot.message_handler(func=lambda m: m.text and m.text.lower() == "изменить мины")
-def change_mines(message):
-    if not is_admin(message.from_user.id):
-        bot.reply_to(message, "❌ Недостаточно прав!")
-        return
-        
-    kb = InlineKeyboardMarkup(row_width=2)
-    kb.add(
-        InlineKeyboardButton("➕ Клетки", callback_data="mines_config_cells_plus"),
-        InlineKeyboardButton("➖ Клетки", callback_data="mines_config_cells_minus"),
-        InlineKeyboardButton("➕ Мины", callback_data="mines_config_count_plus"),
-        InlineKeyboardButton("➖ Мины", callback_data="mines_config_count_minus"),
-        InlineKeyboardButton("❌ Закрыть", callback_data="mines_config_close")
-    )
-    
-    bot.reply_to(message, 
-                f"⚙️ <b>Настройки игры Мины:</b>\n\n"
-                f"Количество клеток: {config['mines_cells']}\n"
-                f"Количество мин: {config['mines_count']}\n\n"
-                f"Выберите что изменить:", 
-                reply_markup=kb,
-                parse_mode="HTML")
-
-@bot.callback_query_handler(func=lambda c: c.data.startswith("mines_config_"))
-def mines_config_handler(call):
-    try:
-        action = call.data
-        
-        if action == "mines_config_cells_plus":
-            config['mines_cells'] += 1
-        elif action == "mines_config_cells_minus":
-            if config['mines_cells'] > 5:  # Минимальное количество клеток
-                config['mines_cells'] -= 1
-        elif action == "mines_config_count_plus":
-            if config['mines_count'] < config['mines_cells'] - 1:  # Максимум мин = клетки - 1
-                config['mines_count'] += 1
-        elif action == "mines_config_count_minus":
-            if config['mines_count'] > 1:  # Минимальное количество мин
-                config['mines_count'] -= 1
-        elif action == "mines_config_close":
-            bot.delete_message(call.message.chat.id, call.message.message_id)
-            bot.answer_callback_query(call.id, "✅ Настройки сохранены!")
-            return
-        
-        save_config()
-        
-        # Обновляем сообщение с новыми настройками
-        kb = InlineKeyboardMarkup(row_width=2)
-        kb.add(
-            InlineKeyboardButton("➕ Клетки", callback_data="mines_config_cells_plus"),
-            InlineKeyboardButton("➖ Клетки", callback_data="mines_config_cells_minus"),
-            InlineKeyboardButton("➕ Мины", callback_data="mines_config_count_plus"),
-            InlineKeyboardButton("➖ Мины", callback_data="mines_config_count_minus"),
-            InlineKeyboardButton("❌ Закрыть", callback_data="mines_config_close")
-        )
-        
-        bot.edit_message_text(
-            f"⚙️ <b>Настройки игры Мины:</b>\n\n"
-            f"Количество клеток: {config['mines_cells']}\n"
-            f"Количество мин: {config['mines_count']}\n\n"
-            f"Выберите что изменить:",
-            call.message.chat.id,
-            call.message.message_id,
-            reply_markup=kb,
-            parse_mode="HTML"
-        )
-        
-        bot.answer_callback_query(call.id, "✅ Настройки обновлены!")
-        
-    except Exception as e:
-        bot.answer_callback_query(call.id, f"❌ Ошибка: {e}")
-        logger.error(f"Ошибка mines_config_handler: {e}")
 
 
 
-@bot.message_handler(func=lambda m: m.text and m.text.lower().startswith("рулетка "))
-def roulette_cmd(message):
-    try:
-        user_id = message.from_user.id
-        user_data = get_user_data(user_id)
-        
-        bet = int(message.text.split()[1])
-        if bet <= 0:
-            bot.send_message(message.chat.id, "❌ Ставка должна быть положительной!")
-            return
-            
-        if user_data["balance"] < bet:
-            bot.send_message(message.chat.id, "❌ Недостаточно средств!")
-            return
-            
-        if start_roulette(user_id, bet):
-            bot.send_photo(message.chat.id, CASINO_IMAGE_URL, 
-                          caption=f"🎡 Ставка {format_number(bet)} принята.\nВыберите вариант:", 
-                          reply_markup=roulette_keyboard())
-        else:
-            bot.send_message(message.chat.id, "❌ Ошибка начала игры!")
-            
-    except (IndexError, ValueError):
-        bot.send_message(message.chat.id, "❌ Используйте: рулетка [ставка]")
-    except Exception as e:
-        bot.send_message(message.chat.id, "❌ Ошибка начала игры!")
-        logger.error(f"Ошибка в игре рулетка: {e}")
-
-@bot.message_handler(func=lambda m: m.text and (m.text.lower() == "баланс" or m.text.lower() == "б"))
-def check_balance(message):
-    user_id = message.from_user.id
-    user_data = get_user_data(user_id)
-    
-    # Обновляем доходы со всех активов
-    update_all_incomes(user_id)
-    
-    bal = user_data["balance"]
-    bank_bal = user_data["bank_balance"]
-    bot.send_message(message.chat.id, f"💰 Ваш баланс: {format_number(bal)}$\n🏦 Банковский счет: {format_number(bank_bal)}$")
-    logger.info(f"Пользователь {message.from_user.username} запросил баланс")
 
 CHAT_LINK = "https://t.me/meowchatgame"
 DEV_LINK = "https://t.me/parvizwp"
@@ -15652,51 +13425,6 @@ def tictactoe_none(call):
 print("✅ Крестики-нолики загружены!")
             
           
-            # ================== ФЕЙКОВАЯ СТАТИСТИКА БОТА (ТОЛЬКО ДЛЯ АДМИНА) ==================
-
-FAKE_USERS = 38194
-FAKE_GROUPS = 328
-
-@bot.message_handler(func=lambda m: m.text and m.text.lower() == "статистика бота")
-def bot_fake_stats(message):
-    if message.from_user.id not in ADMIN_IDS:
-        return  # обычный пользователь — молчание
-
-    text = (
-        "🎅 <b>Статистика пользователей в боте MEOW</b>\n\n"
-        f"🗨️ Всего пользователей в боте: <b><i>{FAKE_USERS}</i></b>.\n"
-        f"🗾 Всего групп в которых состоит бот: <b><i>{FAKE_GROUPS}</i></b>\n"
-    )
-
-    kb = types.InlineKeyboardMarkup()
-    kb.add(types.InlineKeyboardButton("🔄 Обновить статистику", callback_data="fake_stats_refresh"))
-
-    bot.send_message(message.chat.id, text, parse_mode="HTML", reply_markup=kb)
-
-
-@bot.callback_query_handler(func=lambda c: c.data == "fake_stats_refresh")
-def fake_stats_refresh(call):
-    if call.from_user.id not in ADMIN_IDS:
-        return  # обычный пользователь — молчание
-
-    text = (
-        "🎅 <b>Статистика пользователей в боте MEOW</b>\n\n"
-        f"🗨️ Всего пользователей в боте: <b><i>{FAKE_USERS}</i></b>.\n"
-        f"🗾 Всего групп в которых состоит бот: <b><i>{FAKE_GROUPS}</i></b>\n"
-    )
-
-    kb = types.InlineKeyboardMarkup()
-    kb.add(types.InlineKeyboardButton("🔄 Обновить статистику", callback_data="fake_stats_refresh"))
-
-    bot.edit_message_text(
-        text,
-        call.message.chat.id,
-        call.message.message_id,
-        parse_mode="HTML",
-        reply_markup=kb
-    )
-
-    bot.answer_callback_query(call.id, "Обновлено ✔️")
 
 
 # ================== ОРЕЛ И РЕШКА ==================
@@ -16121,76 +13849,74 @@ def check_tyanka_leave(user_id, user_data):
     tyanka = user_data.get("tyanka")
     if not tyanka:
         return False
-    
-    # Быстрая проверка условий ухода
-    if tyanka["satiety"] <= 0 or tyanka.get("mood", 100) <= 20:
+
+    # Быстрая проверка условий ухода (только сытость)
+    if tyanka["satiety"] <= 0:
         # Просто удаляем тянку без уведомлений
         user_data["tyanka"] = None
         save_casino_data()
-        logger.info(f"Тянка ушла от пользователя {user_id} (сытость: {tyanka['satiety']}, настроение: {tyanka.get('mood', 100)})")
+        logger.info(f"Тянка ушла от пользователя {user_id} (сытость: {tyanka['satiety']})")
         return True
-    
+
     return False
 
 # ================== ОПТИМИЗИРОВАННОЕ ОБНОВЛЕНИЕ СТАТИСТИКИ ТЯНКИ ==================
 def update_tyanka_stats(user_data):
-    """Обновляет сытость, настроение и накапливает доход (оптимизированная версия)"""
+    """Обновляет сытость и накапливает доход (оптимизированная версия)"""
     tyanka = user_data.get("tyanka")
     if not tyanka:
         return
-        
-    # Быстрая инициализация полей если их нет
-    if "mood" not in tyanka:
-        tyanka["mood"] = 100
+
+    # Быстрая инициализация полей если их нет (для совместимости)
     if "profit_accumulated" not in tyanka:
         tyanka["profit_accumulated"] = 0
+    if "total_earned" not in tyanka:
+        tyanka["total_earned"] = 0
 
     if "last_update" not in tyanka:
         tyanka["last_update"] = datetime.now().isoformat()
         return
-    
+
     last_update = datetime.fromisoformat(tyanka["last_update"])
     now = datetime.now()
     hours_passed = (now - last_update).total_seconds() / 3600
-    
+
     if hours_passed < 0.01:  # Меньше 36 секунд - не обновляем
         return
-    
+
     tyanka_info = TYANKA_DATA[tyanka["name"]]
-    
-    # Быстрое обновление показателей
+
+    # Быстрое обновление показателей (только сытость)
     satiety_lost = min(int(hours_passed * 3), tyanka["satiety"])
-    mood_lost = min(int(hours_passed * 2), tyanka.get("mood", 100))
-    
+
     if satiety_lost > 0:
         tyanka["satiety"] -= satiety_lost
-        tyanka["mood"] = max(0, tyanka.get("mood", 100) - mood_lost)
 
     # Прибыль только если сытость > 0
     if tyanka["satiety"] > 0:
         profit = int(tyanka_info["profit_per_hour"] * hours_passed)
         tyanka["profit_accumulated"] += profit
-    
+
     tyanka["last_update"] = now.isoformat()
-    
+
     # Быстрая проверка ухода (без сообщений)
-    if tyanka["satiety"] <= 0 or tyanka.get("mood", 100) <= 20:
+    if tyanka["satiety"] <= 0:
         user_data["tyanka"] = None
-        logger.info(f"Тянка автоматически ушла (сытость: {tyanka['satiety']}, настроение: {tyanka.get('mood', 100)})")
+        logger.info(f"Тянка автоматически ушла (сытость: {tyanka['satiety']})")
 
 # ================== МАГАЗИН ТЯНОК С ПАГИНАЦИЕЙ ==================
 @bot.message_handler(func=lambda m: m.text and m.text.lower() in ["магазин тянок", "тянки"])
 def tyanka_shop(message):
     user_id = message.from_user.id
-    
+
     # Разделяем тянок на две страницы
     tyanka_list = list(TYANKA_DATA.keys())
     half = len(tyanka_list) // 2
     page1_tyanki = tyanka_list[:half]
     page2_tyanki = tyanka_list[half:]
-    
+
     text = "💖 <b>Магазин тянок</b>\n\n"
-    
+
     # Показываем первую страницу тянок
     for name in page1_tyanki:
         data = TYANKA_DATA[name]
@@ -16206,29 +13932,29 @@ def tyanka_shop(message):
 
     # Создаем клавиатуру для первой страницы
     kb = InlineKeyboardMarkup(row_width=2)
-    
+
     # Создаем кнопки для первой страницы
     buttons_row1 = []
     for name in page1_tyanki[:2]:  # Первые 2 тянки в первом ряду
         buttons_row1.append(InlineKeyboardButton(name.capitalize(), callback_data=f"tyanka_buy_{name}"))
-    
+
     if buttons_row1:
         if len(buttons_row1) == 2:
             kb.row(buttons_row1[0], buttons_row1[1])
         else:
             kb.row(buttons_row1[0])
-    
+
     # Второй ряд для первой страницы (если есть)
     if len(page1_tyanki) > 2:
         buttons_row2 = []
         for name in page1_tyanki[2:4]:  # Следующие 2 тянки
             buttons_row2.append(InlineKeyboardButton(name.capitalize(), callback_data=f"tyanka_buy_{name}"))
-        
+
         if len(buttons_row2) == 2:
             kb.row(buttons_row2[0], buttons_row2[1])
         elif buttons_row2:
             kb.row(buttons_row2[0])
-    
+
     # Если есть вторая страница - кнопка "Далее"
     if page2_tyanki:
         kb.add(InlineKeyboardButton("Далее →", callback_data=f"tyanka_page_2_{user_id}"))
@@ -16241,16 +13967,16 @@ def tyanka_shop(message):
 def callback_tyanka_pagination(call):
     try:
         user_id = int(call.data.split("_")[3])
-        
+
         if call.from_user.id != user_id:
             bot.answer_callback_query(call.id, "❌ Это не твоя кнопка!", show_alert=True)
             return
-        
+
         page_num = int(call.data.split("_")[2])
         show_tyanka_page(call, page_num, user_id)
-        
+
         bot.answer_callback_query(call.id)
-        
+
     except Exception as e:
         logger.error(f"Ошибка в пагинации тянок: {e}")
         bot.answer_callback_query(call.id, "❌ Ошибка!", show_alert=True)
@@ -16263,16 +13989,16 @@ def show_tyanka_page(call, page_num, user_id):
     half = len(tyanka_list) // 2
     page1_tyanki = tyanka_list[:half]
     page2_tyanki = tyanka_list[half:]
-    
+
     text = "💖 <b>Магазин тянок</b>\n\n"
-    
+
     # Показываем тянок в зависимости от страницы
     if page_num == 2 and page2_tyanki:
         current_tyanki = page2_tyanki
     else:
         current_tyanki = page1_tyanki
         page_num = 1
-    
+
     for name in current_tyanki:
         data = TYANKA_DATA[name]
         text += (
@@ -16294,12 +14020,12 @@ def show_tyanka_page(call, page_num, user_id):
         # Первая кнопка в ряду
         name1 = current_tyanki[i]
         row_buttons.append(InlineKeyboardButton(name1.capitalize(), callback_data=f"tyanka_buy_{name1}"))
-        
+
         # Вторая кнопка в ряду (если есть)
         if i + 1 < len(current_tyanki):
             name2 = current_tyanki[i + 1]
             row_buttons.append(InlineKeyboardButton(name2.capitalize(), callback_data=f"tyanka_buy_{name2}"))
-        
+
         if len(row_buttons) == 2:
             kb.row(row_buttons[0], row_buttons[1])
         else:
@@ -16335,16 +14061,16 @@ def show_tyanka_page(call, page_num, user_id):
 def buy_tyanka_callback(call):
     try:
         tyanka_name = call.data.split("_")[2]
-        
+
         if tyanka_name not in TYANKA_DATA:
             bot.answer_callback_query(call.id, "❌ Тянка не найдена!")
             return
-            
+
         user_id = call.from_user.id
         user_data = get_user_data(user_id)
         tyanka_data = TYANKA_DATA[tyanka_name]
         mention = f'<a href="tg://user?id={user_id}">{call.from_user.first_name}</a>'
-        
+
         # Проверяем, есть ли уже тянка
         if user_data.get("tyanka"):
             bot.edit_message_text(
@@ -16354,7 +14080,7 @@ def buy_tyanka_callback(call):
                 parse_mode="HTML"
             )
             return
-            
+
         # Проверяем баланс
         if user_data["balance"] < tyanka_data["price"]:
             bot.edit_message_text(
@@ -16364,20 +14090,19 @@ def buy_tyanka_callback(call):
                 parse_mode="HTML"
             )
             return
-            
+
         # Покупка тянки
         user_data["balance"] -= tyanka_data["price"]
+        # Убираем mood, добавляем total_earned
         user_data["tyanka"] = {
             "name": tyanka_name,
-            "price": tyanka_data["price"],
-            "profit_per_hour": tyanka_data["profit_per_hour"],
-            "feed_cost": tyanka_data["feed_cost"],
-            "rarity": tyanka_data["rarity"],
-            "satiety": 100,                # <<<<< ДОБАВЛЕНО
-            "last_income": datetime.now().isoformat()
+            "satiety": 100,
+            "profit_accumulated": 0,
+            "total_earned": 0,  # Новый счетчик общего заработка
+            "last_update": datetime.now().isoformat()
         }
         save_casino_data()
-        
+
         # Красивый ответ
         bot.edit_message_text(
             f"💖 {mention}, ты купил тянку «<b>{tyanka_name.capitalize()}</b>» за <b>{format_number(tyanka_data['price'])}$</b>\n\n"
@@ -16386,7 +14111,7 @@ def buy_tyanka_callback(call):
             call.message.message_id,
             parse_mode="HTML"
         )
-        
+
         bot.answer_callback_query(call.id, "✅ Тянка куплена!")
 
     except Exception as e:
@@ -16402,7 +14127,7 @@ def buy_tyanka_text(message):
         if len(parts) < 3:
             bot.send_message(message.chat.id, "❌ Используйте: купить тянку [имя]")
             return
-            
+
         tyanka_name = " ".join(parts[2:])
         handle_tyanka_buy(message.chat.id, user_id, tyanka_name, message.from_user.first_name, None)
 
@@ -16410,12 +14135,7 @@ def buy_tyanka_text(message):
         logger.error(f"Ошибка покупки тянки: {e}")
         bot.send_message(message.chat.id, "❌ Ошибка при покупке тянки!")
 
-@bot.callback_query_handler(func=lambda c: c.data.startswith("tyanka_buy_"))
-def buy_tyanka_inline(call):
-    user_id = call.from_user.id
-    tyanka_name = call.data.split("_")[-1]
-    handle_tyanka_buy(call.message.chat.id, user_id, tyanka_name, call.from_user.first_name, call)
-
+# Вспомогательная функция для покупки
 def handle_tyanka_buy(chat_id, user_id, tyanka_name, buyer_name, call=None):
     user_data = get_user_data(user_id)
 
@@ -16429,15 +14149,16 @@ def handle_tyanka_buy(chat_id, user_id, tyanka_name, buyer_name, call=None):
             msg = f"❌ Недостаточно средств! Нужно {format_number(tyanka_info['price'])}$"
         else:
             user_data["balance"] -= tyanka_info["price"]
+            # Убираем mood, добавляем total_earned
             user_data["tyanka"] = {
                 "name": tyanka_name,
                 "satiety": 100,
-                "mood": 100,
-                "last_update": datetime.now().isoformat(),
-                "profit_accumulated": 0
+                "profit_accumulated": 0,
+                "total_earned": 0,
+                "last_update": datetime.now().isoformat()
             }
             save_casino_data()
-            
+
             msg = (f"🎉 <b>Поздравляем с покупкой!</b>\n\n"
                   f"👤 Покупатель: <b>{buyer_name}</b>\n"
                   f"💝 Тянка: <b>{tyanka_name.capitalize()}</b>\n"
@@ -16452,6 +14173,9 @@ def handle_tyanka_buy(chat_id, user_id, tyanka_name, buyer_name, call=None):
         bot.send_message(chat_id, msg, parse_mode="HTML")
 
 # ================== МОЯ ТЯНКА ==================
+# Константа для лимита заработка (во сколько раз можно заработать больше цены тянки)
+MAX_EARN_MULTIPLIER = 1.5
+
 @bot.message_handler(func=lambda m: m.text and m.text.lower() in ["моя тянка", "моя тяшка"])
 def my_tyanka(message):
     user_id = message.from_user.id
@@ -16466,348 +14190,115 @@ def my_tyanka(message):
     info = TYANKA_DATA[tyanka["name"]]
     mention = f'<a href="tg://user?id={user_id}">{message.from_user.first_name}</a>'
 
+    # Расчет лимита заработка
+    max_earn = int(info["price"] * MAX_EARN_MULTIPLIER)
+    current_total_earned = tyanka.get("total_earned", 0)
+    earn_limit_reached = current_total_earned >= max_earn
+    
+    # Текущая накопленная сумма (доступная для снятия)
+    accumulated_profit = tyanka.get("profit_accumulated", 0)
+
     text = (
-        f"💞 Тянка <b>『{tyanka['name'].capitalize()}』</b>\n"
-        f"➤ Владелец: {mention}\n\n"
-        f"🍪 Сытость: {tyanka['satiety']}%\n"
-        f"😊 Настроение: {tyanka.get('mood', 100)}%\n"
-        f"💲 Доход в час: {format_number(info['profit_per_hour'])}$\n"
+        f"👩🏼 {mention}, информация о вашей тянке \"<b>{tyanka['name'].capitalize()}</b>\":\n\n"
+        f"🍪 Сытость: {tyanka['satiety']} ед.\n"
+        f"🍉 Накоплено: {format_number(accumulated_profit)}$\n"
+        f"💸 Прибыль в час: {format_number(info['profit_per_hour'])} \n"
         f"🌟 Редкость: {info['rarity']}\n"
-        f"💰 Накоплено: {format_number(tyanka.get('profit_accumulated', 0))}$\n"
+        f"🧮 Вся прибыль: {format_number(current_total_earned)}/{format_number(max_earn)} \n\n"
+        f"🛠 <a href='https://t.me/meow_newsbot'>Канал разработчика</a>"
     )
 
+    if earn_limit_reached:
+        text += f"\n⛔ <b>Достигнут лимит заработка! Продайте тянку.</b>\n"
+    elif tyanka["satiety"] <= 30:
+        text += f"\n⚠️ <i>Тянка голодна! Покорми её!</i>\n"
+
     kb = InlineKeyboardMarkup(row_width=2)
-    kb.add(
-        InlineKeyboardButton("💰 Собрать", callback_data=f"tyanka_collect_{user_id}"),
-        InlineKeyboardButton("🍪 Покормить", callback_data=f"tyanka_feed_{user_id}")
-    )
-    kb.add(
-        InlineKeyboardButton("💎 Действия", callback_data=f"tyanka_actions_{user_id}"),
-        InlineKeyboardButton("❌ Продать", callback_data=f"tyanka_sell_{user_id}")
-    )
+    # Оставляем только нужные кнопки
+    collect_button = InlineKeyboardButton("💴 Собрать доход", callback_data=f"tyanka_collect_{user_id}")
+    feed_button = InlineKeyboardButton("🥞 Покормить", callback_data=f"tyanka_feed_{user_id}")
+    sell_button = InlineKeyboardButton("👸 Продать", callback_data=f"tyanka_sell_{user_id}")
+
+    # Делаем кнопку сбора неактивной, если лимит достигнут или нет прибыли (просто для вида, но callback все равно сработает, но проверим в обработчике)
+    # В telebot нет прямого способа сделать кнопку неактивной, поэтому просто добавим проверку в обработчике.
+    kb.add(collect_button, feed_button)
+    kb.add(sell_button)
 
     if info.get("image"):
         bot.send_photo(message.chat.id, info["image"], caption=text, parse_mode="HTML", reply_markup=kb)
     else:
         bot.send_message(message.chat.id, text, parse_mode="HTML", reply_markup=kb)
 
-# ================== ОБНОВЛЕНИЕ СТАТИСТИКИ ТЯНКИ ==================
-def update_tyanka_stats(user_data):
-    """Обновляет сытость, настроение и накапливает доход"""
-    tyanka = user_data.get("tyanka")
-    if not tyanka:
-        return
-        
-    # Инициализация полей если их нет
-    if "mood" not in tyanka:
-        tyanka["mood"] = 100
-    if "profit_accumulated" not in tyanka:
-        tyanka["profit_accumulated"] = 0
-
-    if "last_update" not in tyanka:
-        tyanka["last_update"] = datetime.now().isoformat()
-        save_casino_data()
-        return
-    
-    last_update = datetime.fromisoformat(tyanka["last_update"])
-    now = datetime.now()
-    hours_passed = (now - last_update).total_seconds() / 3600
-    
-    if hours_passed < 0.01:  # Меньше 36 секунд - не обновляем
-        return
-    
-    tyanka_info = TYANKA_DATA[tyanka["name"]]
-    
-    # Уменьшаем сытость и настроение
-    satiety_lost = min(int(hours_passed * 3), tyanka["satiety"])
-    mood_lost = min(int(hours_passed * 2), tyanka.get("mood", 100))
-    
-    if satiety_lost > 0:
-        tyanka["satiety"] -= satiety_lost
-        tyanka["mood"] = max(0, tyanka.get("mood", 100) - mood_lost)
-
-    # Прибыль только если сытость > 0
-    if tyanka["satiety"] > 0:
-        profit = int(tyanka_info["profit_per_hour"] * hours_passed)
-        tyanka["profit_accumulated"] += profit
-    
-    tyanka["last_update"] = now.isoformat()
-    save_casino_data()
-
-
-# ================== ОБРАБОТКА КНОПКИ "НАЗАД" ДЛЯ ТЯНКИ ==================
-@bot.callback_query_handler(func=lambda c: c.data and c.data.startswith("back_tyanka_"))
-def callback_back_tyanka(call):
-    try:
-        user_id = int(call.data.split("_")[-1])
-        
-        if call.from_user.id != user_id:
-            bot.answer_callback_query(call.id, "❌ Это не твоя тянка!")
-            return
-
-        user_data = get_user_data(user_id)
-        if not user_data.get("tyanka"):
-            bot.answer_callback_query(call.id, "❌ У тебя нет тянки!")
-            return
-
-        # Возвращаемся к основному меню тянки
-        tyanka = user_data["tyanka"]
-        name = tyanka["name"]
-        mood = tyanka.get("mood", 100)
-        profit = TYANKA_DATA[name]["profit_per_hour"]
-        image = TYANKA_DATA[name]["image"]
-        info = TYANKA_DATA[name]
-        mention = f'<a href="tg://user?id={user_id}">{call.from_user.first_name}</a>'
-
-        kb = InlineKeyboardMarkup(row_width=2)
-        kb.add(
-            InlineKeyboardButton("💰 Собрать", callback_data=f"tyanka_collect_{user_id}"),
-            InlineKeyboardButton("🍪 Покормить", callback_data=f"tyanka_feed_{user_id}")
-        )
-        kb.add(
-            InlineKeyboardButton("💎 Действия", callback_data=f"tyanka_actions_{user_id}"),
-            InlineKeyboardButton("❌ Продать", callback_data=f"tyanka_sell_{user_id}")
-        )
-
-        caption = (
-            f"💞 Тянка <b>『{tyanka['name'].capitalize()}』</b>\n"
-            f"👤 Владелец: {mention}\n\n"
-            f"🍪 Сытость: {tyanka['satiety']}%\n"
-            f"😊 Настроение: {tyanka.get('mood', 100)}%\n"
-            f"💲 Доход в час: {format_number(info['profit_per_hour'])}$\n"
-            f"🌟 Редкость: {info['rarity']}\n"
-            f"💰 Накоплено: {format_number(tyanka.get('profit_accumulated', 0))}$\n"
-        )
-
-        # Редактируем сообщение обратно к основному меню тянки
-        bot.edit_message_media(
-            media=types.InputMediaPhoto(image, caption=caption, parse_mode="HTML"),
-            chat_id=call.message.chat.id,
-            message_id=call.message.message_id,
-            reply_markup=kb
-        )
-        
-        bot.answer_callback_query(call.id)
-        
-    except Exception as e:
-        logger.error(f"Ошибка в back_tyanka: {e}")
-        bot.answer_callback_query(call.id, "❌ Ошибка!")
-
-# ================== РАСШИРЕННЫЕ RP ДЕЙСТВИЯ ==================
-@bot.callback_query_handler(func=lambda c: c.data and c.data.startswith("tyanka_actions_"))
-def callback_tyanka_actions(call):
+# ================== ОБРАБОТЧИК КНОПКИ "ПРОДАТЬ" (НОВЫЙ) ==================
+@bot.callback_query_handler(func=lambda c: c.data and c.data.startswith("tyanka_sell_") and "confirm" not in c.data and "cancel" not in c.data)
+def callback_tyanka_sell_prompt(call):
     user_id = int(call.data.split("_")[-1])
 
+    # ЗАЩИТА: проверяем владельца
     if call.from_user.id != user_id:
-        bot.answer_callback_query(call.id, "❌ Это не твоя тянка!")
+        bot.answer_callback_query(call.id, "❌ Это не твоя тянка!", show_alert=True)
         return
 
     user_data = get_user_data(user_id)
     if not user_data.get("tyanka"):
-        bot.answer_callback_query(call.id, "❌ У тебя нет тянки!")
-        return
-
-    kb = InlineKeyboardMarkup(row_width=2)
-    
-    # Романтические действия
-    kb.row(
-        InlineKeyboardButton("🤗 Обнять", callback_data=f"rp:hug:{user_id}"),
-        InlineKeyboardButton("💋 Поцеловать", callback_data=f"rp:kiss:{user_id}")
-    )
-    kb.row(
-        InlineKeyboardButton("🥰 Погладить", callback_data=f"rp:pet:{user_id}"),
-        InlineKeyboardButton("👐 Прижать", callback_data=f"rp:cuddle:{user_id}")
-    )
-    kb.row(
-        InlineKeyboardButton("💞 Признаться", callback_data=f"rp:confess:{user_id}"),
-        InlineKeyboardButton("🎁 Подарок", callback_data=f"rp:gift:{user_id}")
-    )
-    
-    # Игривые действия
-    kb.row(
-        InlineKeyboardButton("😂 Пощекотать", callback_data=f"rp:tickle:{user_id}"),
-        InlineKeyboardButton("💃 Танцевать", callback_data=f"rp:dance:{user_id}")
-    )
-    kb.row(
-        InlineKeyboardButton("🍫 Угостить", callback_data=f"rp:treat:{user_id}"),
-        InlineKeyboardButton("📸 Селфи", callback_data=f"rp:selfie:{user_id}")
-    )
-    
-    # Страстные действия
-    kb.row(
-        InlineKeyboardButton("🔥 Страсть", callback_data=f"rp:passion:{user_id}"),
-        InlineKeyboardButton("💘 Романтика", callback_data=f"rp:romance:{user_id}")
-    )
-    
-    # Негативные действия
-    kb.row(
-        InlineKeyboardButton("👊 Ударить", callback_data=f"rp:hit:{user_id}"),
-        InlineKeyboardButton("💥 Толкнуть", callback_data=f"rp:push:{user_id}")
-    )
-    kb.row(
-        InlineKeyboardButton("😾 Оскорбить", callback_data=f"rp:insult:{user_id}"),
-        InlineKeyboardButton("🍑 Шлёпнуть", callback_data=f"rp:slap:{user_id}")
-    )
-    
-    kb.row(InlineKeyboardButton("⬅️ Назад", callback_data=f"back_tyanka_{user_id}"))
-
-    bot.edit_message_caption(
-        chat_id=call.message.chat.id,
-        message_id=call.message.message_id,
-        caption="🎭 <b>Выбери взаимодействие с тянкой:</b>\n\n💝 <i>Романтические действия улучшают настроение</i>\n💔 <i>Негативные действия ухудшают настроение</i>",
-        parse_mode="HTML",
-        reply_markup=kb
-    )
-
-# ================== ОБРАБОТКА RP ДЕЙСТВИЙ ==================
-@bot.callback_query_handler(func=lambda c: c.data and c.data.startswith("rp:"))
-def callback_rp_tyanka(call):
-    try:
-        _, action, user_id = call.data.split(":")
-        user_id = int(user_id)
-    except Exception:
-        bot.answer_callback_query(call.id, "❌ Ошибка данных!")
-        return
-
-    if call.from_user.id != user_id:
-        bot.answer_callback_query(call.id, "❌ Это не твоя тянка!")
-        return
-
-    user_data = get_user_data(user_id)
-    if not user_data.get("tyanka"):
-        bot.answer_callback_query(call.id, "❌ У тебя нет тянки!")
+        bot.answer_callback_query(call.id, "❌ У тебя нет тянки!", show_alert=True)
         return
 
     tyanka_name = user_data["tyanka"]["name"]
+    tyanka_info = TYANKA_DATA[tyanka_name]
+    refund = tyanka_info["price"] // 2
     mention = f'<a href="tg://user?id={user_id}">{call.from_user.first_name}</a>'
 
-    # Расширенный список действий
-    actions_data = {
-        # Романтические (+ настроение)
-        "hug": {"text": f"🤗 {mention} нежно обнял(а) свою тянку {tyanka_name.capitalize()}, чувствуя как бьются их сердца в унисон 💖", "mood": +5},
-        "kiss": {"text": f"💋 {mention} страстно поцеловал(а) свою тянку {tyanka_name.capitalize()}, наполняя мир романтикой 💕", "mood": +8},
-        "pet": {"text": f"🥰 {mention} нежно погладил(а) свою тянку {tyanka_name.capitalize()} по голове, вызывая у неё счастливую улыбку ✨", "mood": +4},
-        "cuddle": {"text": f"👐 {mention} крепко прижал(а) к себе тянку {tyanka_name.capitalize()}, ощущая её тепло и близость 🌸", "mood": +6},
-        "confess": {"text": f"💞 {mention} признался(ась) в любви своей тянке {tyanka_name.capitalize()}, от чего у той забилось сердце чаще 💘", "mood": +10},
-        "gift": {"text": f"🎁 {mention} подарил(а) своей тянке {tyanka_name.capitalize()} красивый подарок, вызвав у неё слёзы счастья 🎀", "mood": +7},
-        
-        # Игривые (+ настроение)
-        "tickle": {"text": f"😂 {mention} начал(а) щекотать свою тянку {tyanka_name.capitalize()}, заполняя комнату звонким смехом 🎈", "mood": +5},
-        "dance": {"text": f"💃 {mention} закружил(а) в танце свою тянку {tyanka_name.capitalize()}, создавая магию момента 🎵", "mood": +6},
-        "treat": {"text": f"🍫 {mention} угостил(а) свою тянку {tyanka_name.capitalize()} вкусным десертом, вызвав у неё восторг 🍰", "mood": +4},
-        "selfie": {"text": f"📸 {mention} сделал(а) милое селфи со своей тянкой {tyanka_name.capitalize()}, запечатлев счастливый момент 🤳", "mood": +3},
-        
-        # Страстные (+ настроение)
-        "passion": {"text": f"🔥 {mention} проявил(а) страсть к своей тянке {tyanka_name.capitalize()}, разжигая огонь в их отношениях 💞", "mood": +9},
-        "romance": {"text": f"💘 {mention} устроил(а) романтический вечер для своей тянки {tyanka_name.capitalize()}, создавая сказку 🥂", "mood": +8},
-        
-        # Негативные (- настроение)
-        "hit": {"text": f"👊 {mention} грубо ударил(а) свою тянку {tyanka_name.capitalize()}, причинив ей боль 😢", "mood": -15},
-        "push": {"text": f"💥 {mention} резко толкнул(а) свою тянку {tyanka_name.capitalize()}, вызвав у неё слёзы 💔", "mood": -12},
-        "insult": {"text": f"😾 {mention} оскорбил(а) свою тянку {tyanka_name.capitalize()}, ранив её чувства 🌧️", "mood": -20},
-        "slap": {"text": f"🍑 {mention} шлёпнул(а) свою тянку {tyanka_name.capitalize()}, вызвав у неё обиду 😞", "mood": -10}
-    }
+    # Текст подтверждения
+    text = (
+        f"{mention}, вы точно хотите продать свою тянку?\n\n"
+        f"👋 Тянка: <b>{tyanka_name.capitalize()}</b>\n"
+        f"💰 После продажи получите: <code>{format_number(refund)}$</code>"
+    )
 
-    if action in actions_data:
-        action_data = actions_data[action]
-        bot.send_message(call.message.chat.id, action_data["text"], parse_mode="HTML")
-        
-        # Обновляем настроение
-        user_data["tyanka"]["mood"] = max(0, min(100, 
-            user_data["tyanka"].get("mood", 100) + action_data["mood"]
-        ))
-        
-        save_casino_data()
-        
-        # Проверяем, не ушла ли тянка после действия
-        check_tyanka_leave(user_id, user_data)
-        
-        bot.answer_callback_query(call.id, f"💝 Настроение изменилось на {action_data['mood']:+d}")
+    kb = InlineKeyboardMarkup(row_width=2)
+    kb.add(
+        InlineKeyboardButton("✅ Да", callback_data=f"tyanka_sell_confirm_{user_id}"),
+        InlineKeyboardButton("❌ Нет", callback_data=f"tyanka_sell_cancel_{user_id}")
+    )
 
-# ================== КОРМЛЕНИЕ ТЯНКИ ==================
-@bot.callback_query_handler(func=lambda c: c.data.startswith("tyanka_feed_"))
-def callback_tyanka_feed(call):
+    # Редактируем сообщение (предполагаем, что это то же сообщение с тянкой)
+    try:
+        # Пытаемся отредактировать как фото
+        bot.edit_message_caption(
+            chat_id=call.message.chat.id,
+            message_id=call.message.message_id,
+            caption=text,
+            parse_mode="HTML",
+            reply_markup=kb
+        )
+    except:
+        # Если не вышло, пробуем как текст
+        try:
+            bot.edit_message_text(
+                text,
+                chat_id=call.message.chat.id,
+                message_id=call.message.message_id,
+                parse_mode="HTML",
+                reply_markup=kb
+            )
+        except Exception as e:
+            logger.error(f"Не удалось отредактировать сообщение для продажи: {e}")
+            bot.answer_callback_query(call.id, "❌ Ошибка интерфейса!", show_alert=True)
+
+
+@bot.callback_query_handler(func=lambda c: c.data and c.data.startswith("tyanka_sell_confirm_"))
+def callback_tyanka_sell_confirm(call):
     user_id = int(call.data.split("_")[-1])
 
+    # ЗАЩИТА: проверяем владельца
     if call.from_user.id != user_id:
-        bot.answer_callback_query(call.id, "❌ Это не твоя тянка!")
+        bot.answer_callback_query(call.id, "❌ Это не твоя кнопка!", show_alert=True)
         return
 
     user_data = get_user_data(user_id)
     if not user_data.get("tyanka"):
-        bot.answer_callback_query(call.id, "❌ У вас нет тянки!")
-        return
-
-    tyanka_name = user_data["tyanka"]["name"]
-    feed_cost = TYANKA_DATA[tyanka_name]["feed_cost"]
-
-    if user_data["balance"] < feed_cost:
-        bot.answer_callback_query(call.id, f"❌ Недостаточно средств! Нужно {format_number(feed_cost)}$")
-        return
-
-    user_data["balance"] -= feed_cost
-    user_data["tyanka"]["satiety"] = 100
-    user_data["tyanka"]["mood"] = min(100, user_data["tyanka"].get("mood", 100) + 15)
-    save_casino_data()
-    
-    # Кликабельный ник с ссылкой
-    user_mention = f'<a href="tg://user?id={user_id}">{call.from_user.first_name}</a>'
-    
-    bot.send_message(call.message.chat.id, 
-                    f"🍽️ <b>{user_mention} накормил(а) свою тянку {tyanka_name.capitalize()}!</b>\n"
-                    f"💸 Стоимость: <code>{format_number(feed_cost)}$</code>\n"
-                    f"😊 Настроение: +15%\n"
-                    f"🍪 Сытость: 100%", 
-                    parse_mode="HTML")
-    bot.answer_callback_query(call.id, "✅ Тянка накормлена!")
-
-# ================== СБОР ДОХОДА ==================
-@bot.callback_query_handler(func=lambda c: c.data.startswith("tyanka_collect_"))
-def callback_tyanka_collect(call):
-    user_id = int(call.data.split("_")[-1])
-
-    if call.from_user.id != user_id:
-        bot.answer_callback_query(call.id, "❌ Это не твоя тянка!")
-        return
-
-    user_data = get_user_data(user_id)
-    if not user_data.get("tyanka"):
-        bot.answer_callback_query(call.id, "❌ У вас нет тянки!")
-        return
-
-    update_tyanka_stats(user_data)
-    profit = user_data["tyanka"].get("profit_accumulated", 0)
-
-    if profit <= 0:
-        bot.answer_callback_query(call.id, "❌ Нет накопленной прибыли!")
-        return
-
-    user_data["balance"] += profit
-    user_data["tyanka"]["profit_accumulated"] = 0
-    save_casino_data()
-    
-    # Кликабельный ник с ссылкой
-    user_mention = f'<a href="tg://user?id={user_id}">{call.from_user.first_name}</a>'
-    
-    bot.send_message(call.message.chat.id, 
-                    f"💰 <b>{user_mention} собрал(а) доход с тянки!</b>\n"
-                    f"💵 Получено: <code>{format_number(profit)}$</code>\n"
-                    f"💳 Баланс: <code>{format_number(user_data['balance'])}$</code>", 
-                    parse_mode="HTML")
-    bot.answer_callback_query(call.id, f"✅ Собрано {format_number(profit)}$!")
-
-# ================== ПРОДАЖА ТЯНКИ ==================
-@bot.callback_query_handler(func=lambda c: c.data.startswith("tyanka_sell_"))
-def callback_tyanka_sell(call):
-    user_id = int(call.data.split("_")[-1])
-
-    if call.from_user.id != user_id:
-        bot.answer_callback_query(call.id, "❌ Это не твоя тянка!")
-        return
-
-    user_data = get_user_data(user_id)
-    if not user_data.get("tyanka"):
-        bot.answer_callback_query(call.id, "❌ У вас нет тянки!")
+        bot.answer_callback_query(call.id, "❌ У тебя нет тянки!", show_alert=True)
         return
 
     tyanka_name = user_data["tyanka"]["name"]
@@ -16818,24 +14309,223 @@ def callback_tyanka_sell(call):
     user_data["tyanka"] = None
     save_casino_data()
 
-    # Кликабельный ник с ссылкой
+    mention = f'<a href="tg://user?id={user_id}">{call.from_user.first_name}</a>'
+
+    # Успешная продажа
+    success_text = f"✅ {mention}, тянка успешно продана!"
+    try:
+        bot.edit_message_caption(
+            chat_id=call.message.chat.id,
+            message_id=call.message.message_id,
+            caption=success_text,
+            parse_mode="HTML"
+        )
+    except:
+        try:
+            bot.edit_message_text(
+                success_text,
+                chat_id=call.message.chat.id,
+                message_id=call.message.message_id,
+                parse_mode="HTML"
+            )
+        except Exception as e:
+            logger.error(f"Не удалось отредактировать сообщение об успешной продаже: {e}")
+            bot.send_message(call.message.chat.id, success_text, parse_mode="HTML")
+
+    bot.answer_callback_query(call.id, f"✅ Продано за {format_number(refund)}$")
+
+
+@bot.callback_query_handler(func=lambda c: c.data and c.data.startswith("tyanka_sell_cancel_"))
+def callback_tyanka_sell_cancel(call):
+    user_id = int(call.data.split("_")[-1])
+
+    # ЗАЩИТА: проверяем владельца
+    if call.from_user.id != user_id:
+        bot.answer_callback_query(call.id, "❌ Это не твоя кнопка!", show_alert=True)
+        return
+
+    # Просто возвращаем пользователя в меню его тянки
+    # Для этого создаем фейковый объект сообщения и вызываем функцию my_tyanka
+    class FakeMessage:
+        def __init__(self, chat, from_user):
+            self.chat = chat
+            self.from_user = from_user
+            self.chat_id = chat.id
+
+    fake_msg = FakeMessage(call.message.chat, call.from_user)
+    my_tyanka(fake_msg)
+    bot.answer_callback_query(call.id, "❌ Продажа отменена")
+
+
+# ================== КОРМЛЕНИЕ ТЯНКИ ==================
+@bot.callback_query_handler(func=lambda c: c.data.startswith("tyanka_feed_"))
+def callback_tyanka_feed(call):
+    user_id = int(call.data.split("_")[-1])
+
+    # ЗАЩИТА: проверяем владельца
+    if call.from_user.id != user_id:
+        bot.answer_callback_query(call.id, "❌ Это не твоя тянка!", show_alert=True)
+        return
+
+    user_data = get_user_data(user_id)
+    if not user_data.get("tyanka"):
+        bot.answer_callback_query(call.id, "❌ У вас нет тянки!", show_alert=True)
+        return
+
+    tyanka = user_data["tyanka"]
+    tyanka_name = tyanka["name"]
+    feed_cost = TYANKA_DATA[tyanka_name]["feed_cost"]
+
+    if user_data["balance"] < feed_cost:
+        bot.answer_callback_query(call.id, f"❌ Недостаточно средств! Нужно {format_number(feed_cost)}$", show_alert=True)
+        return
+
+    # Списываем деньги и восстанавливаем сытость
+    user_data["balance"] -= feed_cost
+    tyanka["satiety"] = 100
+    save_casino_data()
+
+    # Обновляем сообщение с тянкой
+    info = TYANKA_DATA[tyanka_name]
     user_mention = f'<a href="tg://user?id={user_id}">{call.from_user.first_name}</a>'
+    
+    # Расчет лимита заработка
+    max_earn = int(info["price"] * MAX_EARN_MULTIPLIER)
+    current_total_earned = tyanka.get("total_earned", 0)
+    accumulated_profit = tyanka.get("profit_accumulated", 0)
 
-    bot.send_message(call.message.chat.id, 
-                    f"💔 <b>{user_mention} продал(а) тянку!</b>\n"
-                    f"👋 Тянка: <b>{tyanka_name.capitalize()}</b>\n"
-                    f"💰 Получено: <code>{format_number(refund)}$</code>\n"
-                    f"💳 Баланс: <code>{format_number(user_data['balance'])}$</code>", 
-                    parse_mode="HTML")
-    bot.answer_callback_query(call.id, f"✅ Тянка продана за {format_number(refund)}$")
+    text = (
+        f"👩🏼 {user_mention}, информация о вашей тянке \"<b>{tyanka_name.capitalize()}</b>\":\n\n"
+        f"🍪 Сытость: {tyanka['satiety']} ед.\n"
+        f"🍉 Накоплено: {format_number(accumulated_profit)}$\n"
+        f"💸 Прибыль в час: {format_number(info['profit_per_hour'])}\n"
+        f"🌟 Редкость: {info['rarity']}\n"
+        f"🧮 Вся прибыль: {format_number(current_total_earned)}/{format_number(max_earn)}\n\n"
+        f"🛠 <a href='https://t.me/meow_newsbot'>Канал разработчика</a>"
+    )
 
-# ================== КНОПКА НАЗАД ==================
+    kb = InlineKeyboardMarkup(row_width=2)
+    kb.add(
+        InlineKeyboardButton("💴 Собрать доход", callback_data=f"tyanka_collect_{user_id}"),
+        InlineKeyboardButton("🥞 Покормить", callback_data=f"tyanka_feed_{user_id}")
+    )
+    kb.add(InlineKeyboardButton("👸 Продать", callback_data=f"tyanka_sell_{user_id}"))
+
+    try:
+        # Пробуем отредактировать подпись к фото
+        bot.edit_message_caption(
+            chat_id=call.message.chat.id,
+            message_id=call.message.message_id,
+            caption=text,
+            parse_mode="HTML",
+            reply_markup=kb
+        )
+    except:
+        # Если не получилось, редактируем как обычный текст
+        bot.edit_message_text(
+            text,
+            chat_id=call.message.chat.id,
+            message_id=call.message.message_id,
+            parse_mode="HTML",
+            reply_markup=kb
+        )
+
+    bot.answer_callback_query(call.id, f"✅ Тянка накормлена! -{format_number(feed_cost)}$")
+
+# ================== СБОР ДОХОДА ==================
+@bot.callback_query_handler(func=lambda c: c.data.startswith("tyanka_collect_"))
+def callback_tyanka_collect(call):
+    user_id = int(call.data.split("_")[-1])
+
+    # ЗАЩИТА: проверяем владельца
+    if call.from_user.id != user_id:
+        bot.answer_callback_query(call.id, "❌ Это не твоя тянка!", show_alert=True)
+        return
+
+    user_data = get_user_data(user_id)
+    if not user_data.get("tyanka"):
+        bot.answer_callback_query(call.id, "❌ У вас нет тянки!", show_alert=True)
+        return
+
+    update_tyanka_stats(user_data)
+    tyanka = user_data["tyanka"]
+    info = TYANKA_DATA[tyanka["name"]]
+
+    # Проверка лимита заработка
+    max_earn = int(info["price"] * MAX_EARN_MULTIPLIER)
+    current_total_earned = tyanka.get("total_earned", 0)
+
+    if current_total_earned >= max_earn:
+        bot.answer_callback_query(call.id, "⛔ Тянка больше не приносит доход! Продайте её.", show_alert=True)
+        return
+
+    profit = tyanka.get("profit_accumulated", 0)
+
+    if profit <= 0:
+        bot.answer_callback_query(call.id, "❌ Нет накопленной прибыли!", show_alert=True)
+        return
+
+    # Начисляем прибыль и обновляем total_earned
+    user_data["balance"] += profit
+    tyanka["profit_accumulated"] = 0
+
+    # Важно: обновляем total_earned, но не даем ему превысить лимит
+    new_total = current_total_earned + profit
+    tyanka["total_earned"] = min(new_total, max_earn)
+
+    save_casino_data()
+
+    # Обновляем сообщение с тянкой
+    user_mention = f'<a href="tg://user?id={user_id}">{call.from_user.first_name}</a>'
+    accumulated_profit = tyanka.get("profit_accumulated", 0)  # теперь 0
+
+    text = (
+        f"👩🏼 {user_mention}, информация о вашей тянке \"<b>{tyanka['name'].capitalize()}</b>\":\n\n"
+        f"🍪 Сытость: {tyanka['satiety']} ед.\n"
+        f"🍉 Накоплено: {format_number(accumulated_profit)}$\n"
+        f"💸 Прибыль в час: {format_number(info['profit_per_hour'])}\n"
+        f"🌟 Редкость: {info['rarity']}\n"
+        f"🧮 Вся прибыль: {format_number(tyanka['total_earned'])}/{format_number(max_earn)}\n\n"
+        f"🛠 <a href='https://t.me/meow_newsbot'>Канал разработчика</a>"
+    )
+
+    kb = InlineKeyboardMarkup(row_width=2)
+    kb.add(
+        InlineKeyboardButton("💴 Собрать доход", callback_data=f"tyanka_collect_{user_id}"),
+        InlineKeyboardButton("🥞 Покормить", callback_data=f"tyanka_feed_{user_id}")
+    )
+    kb.add(InlineKeyboardButton("👸 Продать", callback_data=f"tyanka_sell_{user_id}"))
+
+    try:
+        # Пробуем отредактировать подпись к фото
+        bot.edit_message_caption(
+            chat_id=call.message.chat.id,
+            message_id=call.message.message_id,
+            caption=text,
+            parse_mode="HTML",
+            reply_markup=kb
+        )
+    except:
+        # Если не получилось, редактируем как обычный текст
+        bot.edit_message_text(
+            text,
+            chat_id=call.message.chat.id,
+            message_id=call.message.message_id,
+            parse_mode="HTML",
+            reply_markup=kb
+        )
+
+    bot.answer_callback_query(call.id, f"✅ +{format_number(profit)}$ на баланс!")
+
+
+# ================== КНОПКА НАЗАД (обновлена с новым текстом) ==================
 @bot.callback_query_handler(func=lambda c: c.data and c.data.startswith("back_tyanka_"))
 def callback_back_tyanka(call):
     user_id = int(call.data.split("_")[-1])
 
+    # ЗАЩИТА: проверяем владельца
     if call.from_user.id != user_id:
-        bot.answer_callback_query(call.id, "❌ Это не твоя тянка!")
+        bot.answer_callback_query(call.id, "❌ Это не твоя тянка!", show_alert=True)
         return
 
     user_data = get_user_data(user_id)
@@ -16849,9 +14539,9 @@ def callback_back_tyanka(call):
         return
 
     update_tyanka_stats(user_data)
-    
-    # Проверяем, не ушла ли тянка (используем оптимизированную версию)
-    if check_tyanka_leave_silent(user_data):
+
+    # Проверяем, не ушла ли тянка
+    if check_tyanka_leave(user_id, user_data):
         bot.edit_message_caption(
             chat_id=call.message.chat.id,
             message_id=call.message.message_id,
@@ -16862,52 +14552,55 @@ def callback_back_tyanka(call):
 
     tyanka = user_data["tyanka"]
     info = TYANKA_DATA[tyanka["name"]]
-    
-    # Кликабельный ник с ссылкой
-    mention = f'<a href="tg://user?id={user_id}">{call.from_user.first_name}</a>'
 
-    # Предупреждения
-    warnings = ""
-    if tyanka["satiety"] <= 30:
-        warnings += "⚠️ <i>Тянка голодна! Покорми её!</i>\n"
-    if tyanka.get("mood", 100) <= 30:
-        warnings += "⚠️ <i>Тянка грустит! Удели ей внимание!</i>\n"
+    # Кликабельная ссылка на пользователя
+    user_mention = f'<a href="tg://user?id={user_id}">{call.from_user.first_name}</a>'
 
-    # Красивая рамка с моноширинным шрифтом
+    # Расчет лимита заработка
+    max_earn = int(info["price"] * MAX_EARN_MULTIPLIER)
+    current_total_earned = tyanka.get("total_earned", 0)
+    earn_limit_reached = current_total_earned >= max_earn
+    accumulated_profit = tyanka.get("profit_accumulated", 0)
+
+    # НОВЫЙ ТЕКСТ с "Накоплено"
     text = (
-        f"<b>🌸 ТВОЯ ТЯНКА</b>\n"
-        f"<code>┌──────────────────┐</code>\n"
-        f"<code>│</code> <b>Владелец:</b> {mention}\n"
-        f"<code>│</code> <b>Имя:</b> {tyanka['name'].capitalize()}\n"
-        f"<code>│</code> <b>Сытость:</b> {tyanka['satiety']}%\n"
-        f"<code>│</code> <b>Настроение:</b> {tyanka.get('mood', 100)}%\n"
-        f"<code>│</code> <b>Доход/час:</b> {format_number(info['profit_per_hour'])}$\n"
-        f"<code>│</code> <b>Редкость:</b> {info['rarity']}\n"
-        f"<code>│</code> <b>Накоплено:</b> {format_number(tyanka.get('profit_accumulated', 0))}$\n"
+        f"👩🏼 {user_mention}, информация о вашей тянке \"{tyanka['name'].capitalize()}\":\n\n"
+        f"🍪 Сытость: {tyanka['satiety']} ед.\n"
+        f"🍉 Накоплено: {format_number(accumulated_profit)}$\n"
+        f"💸 Прибыль в час: {format_number(info['profit_per_hour'])}\n"
+        f"🌟 Редкость: {info['rarity']}\n"
+        f"🧮 Вся прибыль: {format_number(current_total_earned)}/{format_number(max_earn)}\n\n"
+        f"🛠 <a href='https://t.me/meow_newsbot'>Канал разработчика</a>"
     )
-
-    if warnings:
-        text += f"<code>│</code>\n<code>│</code> {warnings}"
-
-    text += f"<code>└──────────────────┘</code>"
 
     kb = InlineKeyboardMarkup(row_width=2)
     kb.add(
-        InlineKeyboardButton("💰 Собрать доход", callback_data=f"tyanka_collect_{user_id}"),
-        InlineKeyboardButton("🍪 Покормить", callback_data=f"tyanka_feed_{user_id}")
+        InlineKeyboardButton("💴 Собрать доход", callback_data=f"tyanka_collect_{user_id}"),
+        InlineKeyboardButton("🥞 Покормить", callback_data=f"tyanka_feed_{user_id}")
     )
-    kb.add(
-        InlineKeyboardButton("🎭 Взаимодействия", callback_data=f"tyanka_actions_{user_id}"),
-        InlineKeyboardButton("💔 Продать", callback_data=f"tyanka_sell_{user_id}")
-    )
+    kb.add(InlineKeyboardButton("👸 Продать", callback_data=f"tyanka_sell_{user_id}"))
 
-    bot.edit_message_caption(
-        chat_id=call.message.chat.id,
-        message_id=call.message.message_id,
-        caption=text,
-        parse_mode="HTML",
-        reply_markup=kb
-    )
+    try:
+        # Пробуем отредактировать подпись к фото
+        bot.edit_message_caption(
+            chat_id=call.message.chat.id,
+            message_id=call.message.message_id,
+            caption=text,
+            parse_mode="HTML",
+            reply_markup=kb
+        )
+    except:
+        # Если не получилось, редактируем как обычный текст
+        bot.edit_message_text(
+            text,
+            chat_id=call.message.chat.id,
+            message_id=call.message.message_id,
+            parse_mode="HTML",
+            reply_markup=kb
+        )
+    
+    bot.answer_callback_query(call.id)
+    
     
 # ================== КОМАНДЫ БИЗНЕСА (ИСПРАВЛЕННАЯ ВЕРСИЯ) ==================
 
@@ -18121,96 +15814,60 @@ def car_wash(call):
         logger.error(f"Ошибка car_wash: {e}")
         bot.send_message(call.message.chat.id, "❌ Ошибка при мойке машины.")
 
-# ================== КОМАНДЫ БАНКА ==================
-@bot.message_handler(func=lambda m: m.text and m.text.lower().startswith("банк положить"))
-def bank_deposit(message):
-    try:
-        user_id = message.from_user.id
-        user_data = get_user_data(user_id)
-        
-        amount = int(message.text.split()[2])
-        
-        if amount <= 0:
-            bot.reply_to(message, "❌ Сумма должна быть положительной!")
-            return
-            
-        if user_data["balance"] < amount:
-            bot.reply_to(message, "❌ Недостаточно средств на балансе!")
-            return
-            
-        user_data["balance"] -= amount
-        user_data["bank_balance"] += amount
-        save_casino_data()
-        
-        bot.reply_to(message, f"✅ Вы положили {format_number(amount)}$ на банковский счет!\n"
-                             f"💰 Баланс: {format_number(user_data['balance'])}$\n"
-                             f"🏦 Банк: {format_number(user_data['bank_balance'])}$")
-        logger.info(f"Пользователь {message.from_user.username} положил {amount}$ в банк")
-        
-    except (IndexError, ValueError):
-        bot.reply_to(message, "❌ Используйте: банк положить [сумма]")
-    except Exception as e:
-        bot.reply_to(message, "❌ Ошибка операции с банком!")
-        logger.error(f"Ошибка банковской операции: {e}")
+# ================== СТАТИСТИКА ПЕРЕВОДОВ (JSON) ==================
 
-@bot.message_handler(func=lambda m: m.text and m.text.lower().startswith("банк снять"))
-def bank_withdraw(message):
-    try:
-        user_id = message.from_user.id
-        user_data = get_user_data(user_id)
-        
-        amount = int(message.text.split()[2])
-        
-        if amount <= 0:
-            bot.reply_to(message, "❌ Сумма должна быть положительной!")
-            return
-            
-        if user_data["bank_balance"] < amount:
-            bot.reply_to(message, "❌ Недостаточно средств на банковском счете!")
-            return
-            
-        user_data["bank_balance"] -= amount
-        user_data["balance"] += amount
-        save_casino_data()
-        
-        bot.reply_to(message, f"✅ Вы сняли {format_number(amount)}$ с банковского счета!\n"
-                             f"💰 Баланс: {format_number(user_data['balance'])}$\n"
-                             f"🏦 Банк: {format_number(user_data['bank_balance'])}$")
-        logger.info(f"Пользователь {message.from_user.username} снял {amount}$ из банка")
-        
-    except (IndexError, ValueError):
-        bot.reply_to(message, "❌ Используйте: банк снять [сумма]")
-    except Exception as e:
-        bot.reply_to(message, "❌ Ошибка операции с банком!")
-        logger.error(f"Ошибка банковской операции: {e}")
+TRANSFER_STATS_FILE = "transfer_stats.json"
 
-@bot.message_handler(func=lambda m: m.text and m.text.lower() == "банк баланс")
-def bank_balance(message):
-    user_id = message.from_user.id
-    user_data = get_user_data(user_id)
+def load_transfer_stats():
+    """Загружает статистику переводов из JSON"""
+    try:
+        if os.path.exists(TRANSFER_STATS_FILE):
+            with open(TRANSFER_STATS_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        return {}
+    except Exception as e:
+        logger.error(f"Ошибка загрузки статистики переводов: {e}")
+        return {}
+
+def save_transfer_stats(stats):
+    """Сохраняет статистику переводов в JSON"""
+    try:
+        with open(TRANSFER_STATS_FILE, "w", encoding="utf-8") as f:
+            json.dump(stats, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        logger.error(f"Ошибка сохранения статистики переводов: {e}")
+
+def update_transfer_stats(user_id, amount, is_sender=True):
+    """Обновляет статистику переводов пользователя"""
+    stats = load_transfer_stats()
+    user_id_str = str(user_id)
     
-    # Начисляем проценты
-    if user_data["bank_balance"] > 0:
-        last_interest_date = datetime.strptime(user_data["last_interest_date"], "%Y-%m-%d").date()
-        days_passed = (date.today() - last_interest_date).days
-        
-        if days_passed > 0:
-            interest = user_data["bank_balance"] * (config["bank_interest_rate"] / 100) * days_passed
-            user_data["bank_balance"] += interest
-            user_data["last_interest_date"] = date.today().isoformat()
-            save_casino_data()
-            
-            bot.reply_to(message, f"🏦 Ваш банковский счет: {format_number(user_data['bank_balance'])}$\n"
-                                 f"💹 Начислено процентов: {format_number(interest)}$\n"
-                                 f"📈 Процентная ставка: {config['bank_interest_rate']}% в день")
-        else:
-            bot.reply_to(message, f"🏦 Ваш банковский счет: {format_number(user_data['bank_balance'])}$\n"
-                                 f"📈 Процентная ставка: {config['bank_interest_rate']}% в день")
+    if user_id_str not in stats:
+        stats[user_id_str] = {
+            "total_sent": 0,
+            "total_received": 0
+        }
+    
+    if is_sender:
+        stats[user_id_str]["total_sent"] += amount
     else:
-        bot.reply_to(message, "🏦 У вас нет средств на банковском счете\n"
-                             f"📈 Процентная ставка: {config['bank_interest_rate']}% в день")
+        stats[user_id_str]["total_received"] += amount
     
-    logger.info(f"Пользователь {message.from_user.username} запросил банковский баланс")
+    save_transfer_stats(stats)
+    return stats[user_id_str]
+
+def get_user_transfer_stats(user_id):
+    """Получает статистику переводов пользователя"""
+    stats = load_transfer_stats()
+    user_id_str = str(user_id)
+    
+    if user_id_str not in stats:
+        return {
+            "total_sent": 0,
+            "total_received": 0
+        }
+    
+    return stats[user_id_str]
 
 # ================== 💳 КРАСИВЫЙ ПЕРЕВОД ДЕНЕГ ==================
 
@@ -18223,104 +15880,126 @@ def transfer_money(message):
             bot.reply_to(message, "❌ Ответьте на сообщение пользователя, которому хотите перевести деньги.")
             return
 
-        sender_id = message.from_user.id  
-        recipient_id = message.reply_to_message.from_user.id  
+        sender_id = message.from_user.id
+        recipient_id = message.reply_to_message.from_user.id
 
-        if sender_id == recipient_id:  
-            bot.reply_to(message, "❌ Нельзя переводить деньги самому себе!")  
-            return  
+        if sender_id == recipient_id:
+            bot.reply_to(message, "❌ Нельзя переводить деньги самому себе!")
+            return
 
-        parts = message.text.split()  
-        if len(parts) < 2:  
-            bot.reply_to(message, "❌ Использование: п [сумма] (например: п 1000, п 2k, п 5к, п 1kk, п 3кк)")  
-            return  
+        parts = message.text.split()
+        if len(parts) < 2:
+            bot.reply_to(message, "❌ Использование: п [сумма] (например: п 1000, п 2k, п 5к, п 1kk, п 3кк)")
+            return
 
-        # Поддержка суффиксов 'k', 'к' (тысячи) и 'kk', 'кк' (миллионы)  
-        amount_text = parts[1].lower()  
-        
-        if amount_text.endswith("kk") or amount_text.endswith("кк"):  
-            amount = int(float(amount_text[:-2]) * 1000000)  
-        elif amount_text.endswith("k") or amount_text.endswith("к"):  
-            amount = int(float(amount_text[:-1]) * 1000)  
-        else:  
+        # Поддержка суффиксов 'k', 'к' (тысячи) и 'kk', 'кк' (миллионы)
+        amount_text = parts[1].lower()
+
+        if amount_text.endswith("kk") or amount_text.endswith("кк"):
+            amount = int(float(amount_text[:-2]) * 1000000)
+        elif amount_text.endswith("k") or amount_text.endswith("к"):
+            amount = int(float(amount_text[:-1]) * 1000)
+        else:
             try:
                 amount = int(amount_text)
             except ValueError:
                 bot.reply_to(message, "❌ Неверный формат суммы!")
                 return
 
-        if amount <= 0:  
-            bot.reply_to(message, "❌ Сумма должна быть положительной!")  
-            return  
+        if amount <= 0:
+            bot.reply_to(message, "❌ Сумма должна быть положительной!")
+            return
 
-        sender_data = get_user_data(sender_id)  
-        recipient_data = get_user_data(recipient_id)  
+        sender_data = get_user_data(sender_id)
+        recipient_data = get_user_data(recipient_id)
 
-        if sender_data["balance"] < amount:  
-            bot.reply_to(message, f"❌ Недостаточно средств! Ваш баланс: {format_number(sender_data['balance'])}$")  
-            return  
+        if sender_data["balance"] < amount:
+            bot.reply_to(message, f"❌ Недостаточно средств! Ваш баланс: {format_number(sender_data['balance'])}$")
+            return
 
-        # ПРОВЕРКА ЛИМИТОВ (без функции apply_transfer_limits)
-        # Простая проверка на максимальный баланс получателя
-        max_balance = 1000000000000000000000000000000  # Значение из ваших настроек
-        
+        # ПРОВЕРКА ЛИМИТОВ
+        max_balance = 1000000000000000000000000000000
+
         if recipient_data["balance"] + amount > max_balance:
             bot.reply_to(message, f"❌ У получателя достигнут максимальный баланс ({format_number(max_balance)}$)!")
             return
-        
-        # Применяем комиссию 10% если сумма большая
+
+        # Применяем комиссию 10% если сумма больше 100,000
         fee = 0
-        net_amount = amount
-        
-        # Если сумма больше 100,000, берем комиссию 10%
+        received_amount = amount  # Сумма, которую получит получатель
+        fee_info = ""
+
         if amount > 100000:
-            fee = int(amount * 0.10)  # 10% комиссия
-            net_amount = amount - fee
+            fee = int(amount * 0.10)
+            received_amount = amount - fee
+            fee_info = f"💸 <b>Комиссия (10%):</b> <code>-{format_number(fee)}$</code>\n"
 
-        # Переводим  
-        sender_data["balance"] -= amount  
-        recipient_data["balance"] = min(  
-            recipient_data["balance"] + net_amount, max_balance
-        )  
-        save_casino_data()  
-
-        # Кликабельные имена  
-        sender_name = f"<a href='tg://user?id={sender_id}'>{message.from_user.first_name}</a>"  
-        recipient_name = f"<a href='tg://user?id={recipient_id}'>{message.reply_to_message.from_user.first_name}</a>"  
-
-        # Простое сообщение без кнопок и излишеств  
-        text = (  
-            f"✅ <b>Перевод выполнен успешно!</b>\n\n"
-            f"👤 <b>Отправитель:</b> {sender_name}\n"
-            f"👤 <b>Получатель:</b> {recipient_name}\n"
-            f"💰 <b>Сумма перевода:</b> {format_number(amount)}$\n"
+        # Переводим
+        sender_data["balance"] -= amount
+        recipient_data["balance"] = min(
+            recipient_data["balance"] + received_amount, max_balance
         )
-        
-        if fee > 0:
-            text += f"📉 <b>Комиссия (10%):</b> {format_number(fee)}$\n"
-            text += f"💸 <b>Зачислено получателю:</b> {format_number(net_amount)}$\n"
-        
-        text += f"\n📊 <b>Ваш текущий баланс:</b> {format_number(sender_data['balance'])}$"
-        
-        # Добавляем ссылку на чат
-        text += f"\n\n💬 <a href='https://t.me/meowchatgame'>Присоединяйтесь в наш чат!</a>"
+        save_casino_data()
 
-        bot.send_message(  
-            message.chat.id,  
-            text,  
+        # Сохраняем статистику переводов
+        update_transfer_stats(sender_id, amount, is_sender=True)
+        update_transfer_stats(recipient_id, received_amount, is_sender=False)
+
+        # Кликабельные имена
+        sender_name = f"<a href='tg://user?id={sender_id}'>{message.from_user.first_name}</a>"
+        recipient_name = f"<a href='tg://user?id={recipient_id}'>{message.reply_to_message.from_user.first_name}</a>"
+
+        # ИСПРАВЛЕННЫЙ ТЕКСТ: Показываем, сколько получил получатель
+        text = (
+            f"🥥 Вы успешно перевели пользователю {recipient_name}\n"
+            f"{fee_info}"  # Добавляем инфо о комиссии (если была)
+            f"🍉 Сумма перевода с комиссией: <code>{format_number(received_amount)}$</code>"
+        )
+
+        bot.send_message(
+            message.chat.id,
+            text,
             parse_mode="HTML",
             disable_web_page_preview=True
-        )  
+        )
 
-        logger.info(  
-            f"Перевод: {message.from_user.first_name} → {message.reply_to_message.from_user.first_name} | {amount}$"  
-        )  
+        logger.info(
+            f"Перевод: {message.from_user.first_name} → {message.reply_to_message.from_user.first_name} | "
+            f"Отправил: {amount}$, Получил: {received_amount}$"
+        )
 
-    except (IndexError, ValueError) as e:  
+    except (IndexError, ValueError) as e:
         bot.reply_to(message, f"❌ Неверный формат! Использование: п [сумма] (например: п 1000, п 2k, п 5к, п 1kk, п 3кк)\nОшибка: {e}")
-    except Exception as e:  
-        logger.error(f"Ошибка перевода: {e}")  
+    except Exception as e:
+        logger.error(f"Ошибка перевода: {e}")
         bot.reply_to(message, "❌ Произошла ошибка при переводе средств!")
+
+# ================== МОЙ ПРОФИЛЬ (СО СТАТИСТИКОЙ ПЕРЕВОДОВ) ==================
+
+@bot.message_handler(func=lambda m: m.text and m.text.lower() in ["мой профиль", "профиль"])
+def my_profile(message):
+    """Показывает профиль пользователя со статистикой"""
+    user_id = message.from_user.id
+    user_name = message.from_user.first_name
+    mention = f'<a href="tg://user?id={user_id}">{user_name}</a>'
+    
+    # Получаем данные пользователя
+    user_data = get_user_data(user_id)
+    transfer_stats = get_user_transfer_stats(user_id)
+    
+    # Сумма всех переводов = отправлено + получено
+    total_transfers = transfer_stats["total_sent"] + transfer_stats["total_received"]
+    
+    # Формируем текст профиля
+    text = (
+        f"👤 Информация про тебя:\n\n"
+        f"🥭 ID: <code>{user_id}</code>\n"
+        f"🥥 Баланс: <code>{format_number(user_data['balance'])}$</code>\n"
+        f"🥞 Сумма всех переводов: <code>{format_number(total_transfers)}$</code>"
+    )
+    
+    # Отправляем ответом на сообщение пользователя
+    bot.reply_to(message, text, parse_mode="HTML")
 
 # ================== ПРОМОКОДЫ ==================
 @bot.message_handler(func=lambda m: m.text and m.text.lower().startswith("промо "))
@@ -18431,142 +16110,7 @@ def roulette_number_choice(message):
     user_data["stage"] = "finished"
     save_casino_data()
 
-# ================== AI КОМАНДА ==================
-@bot.message_handler(func=lambda m: m.text and m.text.lower().startswith(".ai "))
-def cmd_ai(message):
-    try:
-        prompt = message.text.split(maxsplit=1)[1]
 
-        # Системное правило — фиксирует личность ИИ
-        system_prompt = (
-            "Ты — AI Meow Game Bot. "
-            "Ты встроенный игровой помощник телеграм-бота MEOW GAME. "
-            "Если тебя спрашивают кто ты, кто автор, что ты за ИИ — "
-            "отвечай всегда одинаково: 'Я AI Meow Game Bot, созданный для помощи игрокам MEOW GAME.' "
-            "Всегда отвечай дружелюбно, информативно и просто."
-        )
-
-        full_prompt = f"{system_prompt}\n\nВопрос пользователя: {prompt}"
-
-        encoded_prompt = requests.utils.quote(full_prompt)
-
-        # Рабочий API
-        url = f"{AI_TEXT_API}{encoded_prompt}"
-
-        msg = bot.send_message(message.chat.id, "<b>AI Meow Game думает...</b>", parse_mode="HTML")
-
-        headers = {'content-type': 'application/json'}
-        response = requests.get(url, headers=headers, timeout=30)
-        response.raise_for_status()
-
-        ai_response = response.text.strip()
-
-        if not ai_response:
-            bot.delete_message(message.chat.id, msg.message_id)
-            bot.reply_to(message, "❌ AI вернул пустой ответ.")
-            return
-
-        # Удаляем “думает…”
-        bot.delete_message(message.chat.id, msg.message_id)
-
-        # БЕЗ markup (он у тебя не существует → ошибка)
-        sent_msg = bot.send_message(
-            message.chat.id,
-            ai_response,
-            parse_mode="HTML"
-        )
-
-        # храним историю сообщений
-        if not hasattr(bot, "ai_messages"):
-            bot.ai_messages = {}
-
-        bot.ai_messages[str(sent_msg.message_id)] = {
-            "chat_id": message.chat.id,
-            "prompt": full_prompt,
-            "original_msg_id": message.message_id
-        }
-
-    except Exception as e:
-        try:
-            bot.delete_message(message.chat.id, msg.message_id)
-        except:
-            pass
-        bot.reply_to(message, "❌ Ошибка AI обработки")
-        logger.error(f"AI ERROR: {e}")
-
-
-# ================== CALLBACK — НОВЫЙ ОТВЕТ ==================
-@bot.callback_query_handler(func=lambda call: call.data.startswith("ai_new_"))
-def callback_ai_new(call):
-    try:
-        original_msg_id = call.data.replace("ai_new_", "")
-
-        if hasattr(bot, "ai_messages") and original_msg_id in bot.ai_messages:
-            prompt_data = bot.ai_messages[original_msg_id]
-            prompt = prompt_data["prompt"]
-
-            encoded_prompt = requests.utils.quote(prompt)
-
-            # API
-            url = f"{AI_TEXT_API}{encoded_prompt}"
-
-            headers = {'content-type': 'application/json'}
-            response = requests.get(url, headers=headers, timeout=30)
-            response.raise_for_status()
-
-            new_response = response.text.strip()
-
-            if not new_response:
-                bot.answer_callback_query(call.id, "❌ Пустой ответ от AI")
-                return
-
-            markup = InlineKeyboardMarkup()
-            markup.row(
-                InlineKeyboardButton("🗨️ Другой ответ", callback_data=f"ai_new_{call.message.message_id}"),
-                InlineKeyboardButton("🗑️ Удалить SMS", callback_data="ai_delete")
-            )
-
-            bot.edit_message_text(
-                new_response,
-                call.message.chat.id,
-                call.message.message_id,
-                reply_markup=markup,
-                parse_mode="HTML"
-            )
-
-            bot.ai_messages[str(call.message.message_id)] = {
-                "chat_id": call.message.chat.id,
-                "prompt": prompt,
-                "original_msg_id": prompt_data["original_msg_id"]
-            }
-
-            bot.answer_callback_query(call.id, "🔄 Новый ответ готов!")
-
-        else:
-            bot.answer_callback_query(call.id, "❌ Данные не найдены!")
-
-    except Exception as e:
-        logger.error(f"AI NEW ERROR: {e}")
-        bot.answer_callback_query(call.id, "❌ Ошибка генерации")
-
-
-# ================== CALLBACK — УДАЛИТЬ SMS ==================
-@bot.callback_query_handler(func=lambda call: call.data == "ai_delete")
-def callback_ai_delete(call):
-    try:
-        user_mention = f'<a href="tg://user?id={call.from_user.id}">{call.from_user.first_name}</a>'
-        delete_text = f"<b>{user_mention} удалил сообщения от AI Meow Game</b>"
-
-        bot.send_message(call.message.chat.id, delete_text, parse_mode="HTML")
-        bot.delete_message(call.message.chat.id, call.message.message_id)
-
-        if hasattr(bot, "ai_messages") and str(call.message.message_id) in bot.ai_messages:
-            del bot.ai_messages[str(call.message.message_id)]
-
-        bot.answer_callback_query(call.id, "🗑️ Сообщение удалено")
-
-    except:
-        bot.answer_callback_query(call.id, "❌ Ошибка удаления")
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith('tyanka_collect_'))
 def callback_tyanka_collect(call):
@@ -18867,619 +16411,6 @@ def callback_roulette(call):
     bot.answer_callback_query(call.id)
 
 
-# ================== АДМИН ПАНЕЛЬ ==================
-@bot.message_handler(commands=['admin'])
-def admin_panel(message):
-    if not is_admin(message.from_user.id):
-        bot.reply_to(message, "❌ Недостаточно прав!")
-        return
-        
-    bot.send_message(
-        message.chat.id,
-        "👑 <b>Админ панель</b>\n\nВыбери действие:",
-        reply_markup=admin_keyboard(),
-        parse_mode="HTML"
-    )
-    logger.info(f"Админ {message.from_user.username} открыл админ панель")
-
-@bot.callback_query_handler(func=lambda call: call.data.startswith('admin_'))
-def callback_admin(call):
-    if not is_admin(call.from_user.id):
-        bot.answer_callback_query(call.id, "❌ Недостаточно прав!")
-        return
-        
-    action = call.data.replace('admin_', '')
-    
-    if action == "close":
-        bot.delete_message(call.message.chat.id, call.message.message_id)
-        bot.answer_callback_query(call.id, "✅ Панель закрыта")
-        return
-        
-    elif action == "stats":
-        total_players = len(casino_data)
-        total_balance = sum(data["balance"] for data in casino_data.values())
-        total_bank = sum(data["bank_balance"] for data in casino_data.values())
-        
-        stats_text = (
-            f"📊 <b>Статистика бота:</b>\n\n"
-            f"👥 Всего игроков: {total_players}\n"
-            f"💰 Общий баланс: {format_number(total_balance)}$\n"
-            f"🏦 Общий банк: {format_number(total_bank)}$\n"
-            f"🎰 Всего игр: {sum(1 for data in casino_data.values() if data.get('game'))}\n"
-            f"💸 Всего промокодов: {len(promocodes)}\n"
-            f"📈 Макс. дневной доход: {format_number(config['max_daily_income'])}$\n"
-            f"💎 Макс. баланс: {format_number(config['max_balance'])}$"
-        )
-        
-        bot.edit_message_text(
-            chat_id=call.message.chat.id,
-            message_id=call.message.message_id,
-            text=stats_text,
-            reply_markup=admin_keyboard(),
-            parse_mode="HTML"
-        )
-        
-    elif action == "settings":
-        settings_text = (
-            f"⚙️ <b>Настройки бота:</b>\n\n"
-            f"🎰 Множитель блэкджека: {config['blackjack_win_multiplier']}x\n"
-            f"🎡 Множитель рулетки: {config['roulette_win_multiplier']}x\n"
-            f"💣 Прирост множителя мин: {config['mines_multiplier_increment']}x\n"
-            f"🪙 Множитель орла/решки: {config['coin_flip_multiplier']}x\n"
-            f"🏦 Процент банка: {config['bank_interest_rate']}% в день\n"
-            f"💸 Комиссия переводов: {config['transfer_fee'] * 100}%\n"
-            f"📊 Лимит переводов в день: {format_number(config['transfer_daily_limit'])}$"
-        )
-        
-        bot.edit_message_text(
-            chat_id=call.message.chat.id,
-            message_id=call.message.message_id,
-            text=settings_text,
-            reply_markup=admin_keyboard(),
-            parse_mode="HTML"
-        )
-        
-    elif action == "reset_db":
-        kb = InlineKeyboardMarkup()
-        kb.add(
-            InlineKeyboardButton("✅ Да, сбросить", callback_data="admin_confirm_reset"),
-            InlineKeyboardButton("❌ Нет, отмена", callback_data="admin_cancel_reset")
-        )
-        
-        bot.edit_message_text(
-            chat_id=call.message.chat.id,
-            message_id=call.message.message_id,
-            text="⚠️ <b>ВНИМАНИЕ!</b>\n\nВы уверены, что хотите сбросить всю базу данных? Это действие невозможно отменить!",
-            reply_markup=kb,
-            parse_mode="HTML"
-        )
-        
-    elif action == "restore_db":
-        casino_data
-        casino_data = deepcopy(casino_data_backup)
-        save_casino_data()
-        
-        bot.edit_message_text(
-            chat_id=call.message.chat.id,
-            message_id=call.message.message_id,
-            text="✅ База данных восстановлена из резервной копии!",
-            reply_markup=admin_keyboard(),
-            parse_mode="HTML"
-        )
-        logger.info(f"Админ {call.from_user.username} восстановил БД из резервной копии")
-        
-    elif action == "give_money":
-        bot.edit_message_text(
-            chat_id=call.message.chat.id,
-            message_id=call.message.message_id,
-            text="💰 <b>Выдать деньги</b>\n\nИспользуйте команду: выдать [ID] [сумма] или ответьте на сообщение: выдать [сумма]",
-            reply_markup=admin_keyboard(),
-            parse_mode="HTML"
-        )
-        
-    elif action == "take_money":
-        bot.edit_message_text(
-            chat_id=call.message.chat.id,
-            message_id=call.message.message_id,
-            text="❌ <b>Забрать деньги</b>\n\nИспользуйте команду: убрать [ID] [сумма] или ответьте на сообщение: убрать [сумма]",
-            reply_markup=admin_keyboard(),
-            parse_mode="HTML"
-        )
-        
-    elif action == "give_tyanka":
-        bot.edit_message_text(
-            chat_id=call.message.chat.id,
-            message_id=call.message.message_id,
-            text="👩 <b>Выдать тянку</b>\n\nИспользуйте команду: выдать тянку [имя] (ответом на сообщение пользователя)",
-            reply_markup=admin_keyboard(),
-            parse_mode="HTML"
-        )
-        
-    elif action == "give_house":
-        bot.edit_message_text(
-            chat_id=call.message.chat.id,
-            message_id=call.message.message_id,
-            text="🏠 <b>Выдать дом</b>\n\nИспользуйте команду: выдать дом [название] (ответом на сообщение пользователя)",
-            reply_markup=admin_keyboard(),
-            parse_mode="HTML"
-        )
-        
-    elif action == "give_car":
-        bot.edit_message_text(
-            chat_id=call.message.chat.id,
-            message_id=call.message.message_id,
-            text="🚗 <b>Выдать машину</b>\n\nИспользуйте команду: выдать машину [название] (ответом на сообщение пользователя)",
-            reply_markup=admin_keyboard(),
-            parse_mode="HTML"
-        )
-        
-    elif action == "give_business":
-        bot.edit_message_text(
-            chat_id=call.message.chat.id,
-            message_id=call.message.message_id,
-            text="🏢 <b>Выдать бизнес</b>\n\nИспользуйте команду: выдать бизнес [название] (ответом на сообщение пользователя)",
-            reply_markup=admin_keyboard(),
-            parse_mode="HTML"
-        )
-        
-    elif action == "change_limits":
-        limits_text = (
-            f"📊 <b>Текущие лимиты:</b>\n\n"
-            f"💰 Макс. дневной доход: {format_number(config['max_daily_income'])}$\n"
-            f"💎 Макс. баланс: {format_number(config['max_balance'])}$\n"
-            f"💸 Лимит переводов в день: {format_number(config['transfer_daily_limit'])}$\n\n"
-            f"Используйте команды:\n"
-            f"• изменить лимит доход [сумма]\n"
-            f"• изменить лимит баланс [сумма]\n"
-            f"• изменить лимит переводы [сумма]"
-        )
-        
-        bot.edit_message_text(
-            chat_id=call.message.chat.id,
-            message_id=call.message.message_id,
-            text=limits_text,
-            reply_markup=admin_keyboard(),
-            parse_mode="HTML"
-        )
-        
-    elif action == "change_chances":
-        chances_text = (
-            f"🎰 <b>Текущие множители:</b>\n\n"
-            f"🃏 Блэкджек: {config['blackjack_win_multiplier']}x\n"
-            f"🎡 Рулетка: {config['roulette_win_multiplier']}x\n"
-            f"💣 Мины: +{config['mines_multiplier_increment']}x за клетку\n"
-            f"🪙 Орёл/решка: {config['coin_flip_multiplier']}x\n\n"
-            f"Используйте команды:\n"
-            f"• изменить множитель блэкджек [число]\n"
-            f"• изменить множитель рулетка [число]\n"
-            f"• изменить множитель мины [число]\n"
-            f"• изменить множитель монета [число]"
-        )
-        
-        bot.edit_message_text(
-            chat_id=call.message.chat.id,
-            message_id=call.message.message_id,
-            text=chances_text,
-            reply_markup=admin_keyboard(),
-            parse_mode="HTML"
-        )
-        
-    elif action == "change_bank_interest":
-        bot.edit_message_text(
-            chat_id=call.message.chat.id,
-            message_id=call.message.message_id,
-            text=f"🏦 <b>Текущая процентная ставка:</b> {config['bank_interest_rate']}% в день\n\nИспользуйте команду: изменить процент банка [число]",
-            reply_markup=admin_keyboard(),
-            parse_mode="HTML"
-        )
-        
-    elif action == "promo_list":
-        if not promocodes:
-            bot.edit_message_text(
-                chat_id=call.message.chat.id,
-                message_id=call.message.message_id,
-                text="📋 Нет активных промокодов",
-                reply_markup=admin_keyboard(),
-                parse_mode="HTML"
-            )
-            return
-            
-        promo_text = "📋 <b>Список промокодов:</b>\n\n"
-        for name, data in promocodes.items():
-            promo_text += (f"Код: <code>{name}</code>\n"
-                          f"Сумма: {format_number(data['amount'])}$\n"
-                          f"Активаций: {data['current_activations']}/{data['max_activations']}\n\n")
-            
-        bot.edit_message_text(
-            chat_id=call.message.chat.id,
-            message_id=call.message.message_id,
-            text=promo_text,
-            reply_markup=admin_keyboard(),
-            parse_mode="HTML"
-        )
-        
-    elif action == "create_promo":
-        bot.edit_message_text(
-            chat_id=call.message.chat.id,
-            message_id=call.message.message_id,
-            text="🎫 <b>Создать промокод</b>\n\nИспользуйте команду: создать промо [название] [сумма] [активации]",
-            reply_markup=admin_keyboard(),
-            parse_mode="HTML"
-        )
-        
-    elif action == "delete_promo":
-        if not promocodes:
-            bot.edit_message_text(
-                chat_id=call.message.chat.id,
-                message_id=call.message.message_id,
-                text="❌ Нет промокодов для удаления",
-                reply_markup=admin_keyboard(),
-                parse_mode="HTML"
-            )
-            return
-            
-        kb = InlineKeyboardMarkup()
-        for name in promocodes.keys():
-            kb.add(InlineKeyboardButton(f"❌ {name}", callback_data=f"admin_delete_{name}"))
-        kb.add(InlineKeyboardButton("↩️ Назад", callback_data="admin_back"))
-        
-        bot.edit_message_text(
-            chat_id=call.message.chat.id,
-            message_id=call.message.message_id,
-            text="❌ <b>Выберите промокод для удаления:</b>",
-            reply_markup=kb,
-            parse_mode="HTML"
-        )
-        
-    elif action == "broadcast":
-        bot.edit_message_text(
-            chat_id=call.message.chat.id,
-            message_id=call.message.message_id,
-            text="📢 <b>Рассылка</b>\n\nИспользуйте команду: рассылка [текст]",
-            reply_markup=admin_keyboard(),
-            parse_mode="HTML"
-        )
-        
-    elif action == "top_players":
-        top_users = get_top_players()
-        top_text = "🏆 <b>Топ игроков по балансу:</b>\n\n"
-        for i, (username, balance) in enumerate(top_users, 1):
-            top_text += f"{i}. {username}: {format_number(balance)} $\n"
-            
-        bot.edit_message_text(
-            chat_id=call.message.chat.id,
-            message_id=call.message.message_id,
-            text=top_text,
-            reply_markup=admin_keyboard(),
-            parse_mode="HTML"
-        )
-        
-    elif action == "search_player":
-        bot.edit_message_text(
-            chat_id=call.message.chat.id,
-            message_id=call.message.message_id,
-            text="🔍 <b>Поиск игрока</b>\n\nИспользуйте команду: найти  [ID/имя]",
-            reply_markup=admin_keyboard(),
-            parse_mode="HTML"
-        )
-        
-    elif action == "change_mines":
-        kb = InlineKeyboardMarkup(row_width=2)
-        kb.add(
-            InlineKeyboardButton("➕ Клетки", callback_data="mines_cells"),
-            InlineKeyboardButton("➖ Клетки", callback_data="mines_cells_minus"),
-            InlineKeyboardButton("➕ Мины", callback_data="mines_count"),
-            InlineKeyboardButton("➖ Мины", callback_data="mines_count_minus"),
-            InlineKeyboardButton("❌ Закрыть", callback_data="mines_close")
-        )
-        
-        bot.edit_message_text(
-            chat_id=call.message.chat.id,
-            message_id=call.message.message_id,
-            text=f"⚙️ <b>Настройки игры Мины:</b>\n\nКоличество клеток: {config['mines_cells']}\nКоличество мин: {config['mines_count']}\n\nВыберите что изменить:",
-            reply_markup=kb,
-            parse_mode="HTML"
-        )
-        
-    elif action == "give_admin":
-        bot.edit_message_text(
-            chat_id=call.message.chat.id,
-            message_id=call.message.message_id,
-            text="👑 <b>Выдать права админа</b>\n\nИспользуйте команду: админка [ID] или ответьте на сообщение: админка",
-            reply_markup=admin_keyboard(),
-            parse_mode="HTML"
-        )
-        
-    elif action == "remove_admin":
-        bot.edit_message_text(
-            chat_id=call.message.chat.id,
-            message_id=call.message.message_id,
-            text="👑 <b>Снять права админа</b>\n\nИспользуйте команду: минус админка [ID] или ответьте на сообщение: минус админка",
-            reply_markup=admin_keyboard(),
-            parse_mode="HTML"
-        )
-        
-    elif action.startswith("delete_"):
-        promo_name = action.replace("delete_", "")
-        if promo_name in promocodes:
-            del promocodes[promo_name]
-            save_promocodes()
-            bot.edit_message_text(
-                chat_id=call.message.chat.id,
-                message_id=call.message.message_id,
-                text=f"✅ Промокод '{promo_name}' удален!",
-                reply_markup=admin_keyboard(),
-                parse_mode="HTML"
-            )
-            logger.info(f"Админ {call.from_user.username} удалил промокод {promo_name}")
-        else:
-            bot.answer_callback_query(call.id, "❌ Промокод не найден!")
-            
-    elif action == "back":
-        bot.edit_message_text(
-            chat_id=call.message.chat.id,
-            message_id=call.message.message_id,
-            text="👑 <b>Админ панель Iris Bot</b>\n\nВыберите действие:",
-            reply_markup=admin_keyboard(),
-            parse_mode="HTML"
-        )
-        
-    bot.answer_callback_query(call.id)
-
-@bot.callback_query_handler(func=lambda call: call.data in ["admin_confirm_reset", "admin_cancel_reset"])
-def callback_admin_reset(call):
-    if not is_admin(call.from_user.id):
-        bot.answer_callback_query(call.id, "❌ Недостаточно прав!")
-        return
-        
-    if call.data == "admin_confirm_reset":
-        global casino_data
-        casino_data = {}
-        save_casino_data()
-        
-        text = "✅ База данных полностью сброшена!"
-        logger.info(f"Админ {call.from_user.username} сбросил БД")
-    else:
-        text = "❌ Сброс базы данных отменен!"
-        
-    bot.edit_message_text(
-        chat_id=call.message.chat.id,
-        message_id=call.message.message_id,
-        text=text,
-        reply_markup=admin_keyboard(),
-        parse_mode="HTML"
-    )
-    bot.answer_callback_query(call.id)
-
-# ================== ОБРАБОТКА КОМАНД ИЗМЕНЕНИЯ МИН ==================
-@bot.callback_query_handler(func=lambda call: call.data.startswith('mines_'))
-def callback_mines_settings(call):
-    if not is_admin(call.from_user.id):
-        bot.answer_callback_query(call.id, "❌ Недостаточно прав!")
-        return
-        
-    action = call.data
-    
-    if action == "mines_cells":
-        config["mines_cells"] += 1
-    elif action == "mines_cells_minus":
-        if config["mines_cells"] > 5:
-            config["mines_cells"] -= 1
-    elif action == "mines_count":
-        if config["mines_count"] < config["mines_cells"] - 1:
-            config["mines_count"] += 1
-    elif action == "mines_count_minus":
-        if config["mines_count"] > 1:
-            config["mines_count"] -= 1
-    elif action == "mines_close":
-        bot.delete_message(call.message.chat.id, call.message.message_id)
-        bot.answer_callback_query(call.id, "✅ Настройки закрыты")
-        return
-        
-    save_config()
-    
-    kb = InlineKeyboardMarkup(row_width=2)
-    kb.add(
-        InlineKeyboardButton("➕ Клетки", callback_data="mines_cells"),
-        InlineKeyboardButton("➖ Клетки", callback_data="mines_cells_minus"),
-        InlineKeyboardButton("➕ Мины", callback_data="mines_count"),
-        InlineKeyboardButton("➖ Мины", callback_data="mines_count_minus"),
-        InlineKeyboardButton("❌ Закрыть", callback_data="mines_close")
-    )
-    
-    bot.edit_message_text(
-        chat_id=call.message.chat.id,
-        message_id=call.message.message_id,
-        text=f"⚙️ <b>Настройки игры Мины:</b>\n\nКоличество клеток: {config['mines_cells']}\nКоличество мин: {config['mines_count']}\n\nВыберите что изменить:",
-        reply_markup=kb,
-        parse_mode="HTML"
-    )
-    bot.answer_callback_query(call.id)
-
-# ================== КОМАНДЫ ИЗМЕНЕНИЯ НАСТРОЕК ==================
-@bot.message_handler(func=lambda m: m.text and m.text.lower().startswith("изменить лимит доход"))
-def change_income_limit(message):
-    if not is_admin(message.from_user.id):
-        return
-        
-    try:
-        amount = int(message.text.split()[3])
-        if amount < 0:
-            bot.reply_to(message, "❌ Лимит не может быть отрицательным!")
-            return
-            
-        config["max_daily_income"] = amount
-        save_config()
-        
-        bot.reply_to(message, f"✅ Максимальный дневной доход изменен на {format_number(amount)}$")
-        logger.info(f"Админ {message.from_user.username} изменил лимит дохода на {amount}")
-        
-    except (IndexError, ValueError):
-        bot.reply_to(message, "❌ Используйте: изменить лимит доход [сумма]")
-    except Exception as e:
-        bot.reply_to(message, "❌ Ошибка изменения лимита!")
-        logger.error(f"Ошибка изменения лимита дохода: {e}")
-
-@bot.message_handler(func=lambda m: m.text and m.text.lower().startswith("изменить лимит баланс"))
-def change_balance_limit(message):
-    if not is_admin(message.from_user.id):
-        return
-        
-    try:
-        amount = int(message.text.split()[3])
-        if amount < 0:
-            bot.reply_to(message, "❌ Лимит не может быть отрицательным!")
-            return
-            
-        config["max_balance"] = amount
-        save_config()
-        
-        bot.reply_to(message, f"✅ Максимальный баланс изменен на {format_number(amount)}$")
-        logger.info(f"Админ {message.from_user.username} изменил лимит баланса на {amount}")
-        
-    except (IndexError, ValueError):
-        bot.reply_to(message, "❌ Используйте: изменить лимит баланс [сумма]")
-    except Exception as e:
-        bot.reply_to(message, "❌ Ошибка изменения лимита!")
-        logger.error(f"Ошибка изменения лимита баланса: {e}")
-
-@bot.message_handler(func=lambda m: m.text and m.text.lower().startswith("изменить лимит переводы"))
-def change_transfer_limit(message):
-    if not is_admin(message.from_user.id):
-        return
-        
-    try:
-        amount = int(message.text.split()[3])
-        if amount < 0:
-            bot.reply_to(message, "❌ Лимит не может быть отрицательным!")
-            return
-            
-        config["transfer_daily_limit"] = amount
-        save_config()
-        
-        bot.reply_to(message, f"✅ Лимит переводов изменен на {format_number(amount)}$ в день")
-        logger.info(f"Админ {message.from_user.username} изменил лимит переводов на {amount}")
-        
-    except (IndexError, ValueError):
-        bot.reply_to(message, "❌ Используйте: изменить лимит переводы [сумма]")
-    except Exception as e:
-        bot.reply_to(message, "❌ Ошибка изменения лимита!")
-        logger.error(f"Ошибка изменения лимита переводов: {e}")
-
-@bot.message_handler(func=lambda m: m.text and m.text.lower().startswith("изменить множитель блэкджек"))
-def change_blackjack_multiplier(message):
-    if not is_admin(message.from_user.id):
-        return
-        
-    try:
-        multiplier = float(message.text.split()[3])
-        if multiplier <= 0:
-            bot.reply_to(message, "❌ Множитель должен быть положительным!")
-            return
-            
-        config["blackjack_win_multiplier"] = multiplier
-        save_config()
-        
-        bot.reply_to(message, f"✅ Множитель блэкджека изменен на {multiplier}x")
-        logger.info(f"Админ {message.from_user.username} изменил множитель блэкджека на {multiplier}")
-        
-    except (IndexError, ValueError):
-        bot.reply_to(message, "❌ Используйте: изменить множитель блэкджек [число]")
-    except Exception as e:
-        bot.reply_to(message, "❌ Ошибка изменения множителя!")
-        logger.error(f"Ошибка изменения множителя блэкджека: {e}")
-
-@bot.message_handler(func=lambda m: m.text and m.text.lower().startswith("изменить множитель рулетка"))
-def change_roulette_multiplier(message):
-    if not is_admin(message.from_user.id):
-        return
-        
-    try:
-        multiplier = float(message.text.split()[3])
-        if multiplier <= 0:
-            bot.reply_to(message, "❌ Множитель должен быть положительным!")
-            return
-            
-        config["roulette_win_multiplier"] = multiplier
-        save_config()
-        
-        bot.reply_to(message, f"✅ Множитель рулетки изменен на {multiplier}x")
-        logger.info(f"Админ {message.from_user.username} изменил множитель рулетки на {multiplier}")
-        
-    except (IndexError, ValueError):
-        bot.reply_to(message, "❌ Используйте: изменить множитель рулетка [число]")
-    except Exception as e:
-        bot.reply_to(message, "❌ Ошибка изменения множителя!")
-        logger.error(f"Ошибка изменения множителя рулетки: {e}")
-
-@bot.message_handler(func=lambda m: m.text and m.text.lower().startswith("изменить множитель мины"))
-def change_mines_multiplier(message):
-    if not is_admin(message.from_user.id):
-        return
-        
-    try:
-        multiplier = float(message.text.split()[3])
-        if multiplier <= 0:
-            bot.reply_to(message, "❌ Множитель должен быть положительным!")
-            return
-            
-        config["mines_multiplier_increment"] = multiplier
-        save_config()
-        
-        bot.reply_to(message, f"✅ Прирост множителя мин изменен на {multiplier}x")
-        logger.info(f"Админ {message.from_user.username} изменил множитель мин на {multiplier}")
-        
-    except (IndexError, ValueError):
-        bot.reply_to(message, "❌ Используйте: изменить множитель мины [число]")
-    except Exception as e:
-        bot.reply_to(message, "❌ Ошибка изменения множителя!")
-        logger.error(f"Ошибка изменения множителя мин: {e}")
-
-@bot.message_handler(func=lambda m: m.text and m.text.lower().startswith("изменить множитель монета"))
-def change_coin_multiplier(message):
-    if not is_admin(message.from_user.id):
-        return
-        
-    try:
-        multiplier = float(message.text.split()[3])
-        if multiplier <= 0:
-            bot.reply_to(message, "❌ Множитель должен быть положительным!")
-            return
-            
-        config["coin_flip_multiplier"] = multiplier
-        save_config()
-        
-        bot.reply_to(message, f"✅ Множитель орла/решки изменен на {multiplier}x")
-        logger.info(f"Админ {message.from_user.username} изменил множитель монеты на {multiplier}")
-        
-    except (IndexError, ValueError):
-        bot.reply_to(message, "❌ Используйте: изменить множитель монета [число]")
-    except Exception as e:
-        bot.reply_to(message, "❌ Ошибка изменения множителя!")
-        logger.error(f"Ошибка изменения множителя монеты: {e}")
-
-@bot.message_handler(func=lambda m: m.text and m.text.lower().startswith("изменить процент банка"))
-def change_bank_interest(message):
-    if not is_admin(message.from_user.id):
-        return
-        
-    try:
-        interest = float(message.text.split()[3])
-        if interest < 0:
-            bot.reply_to(message, "❌ Процент не может быть отрицательным!")
-            return
-            
-        config["bank_interest_rate"] = interest
-        save_config()
-        
-        bot.reply_to(message, f"✅ Процентная ставка банка изменена на {interest}% в день")
-        logger.info(f"Админ {message.from_user.username} изменил процент банка на {interest}")
-        
-    except (IndexError, ValueError):
-        bot.reply_to(message, "❌ Используйте: изменить процент банка [число]")
-    except Exception as e:
-        bot.reply_to(message, "❌ Ошибка изменения процента!")
-        logger.error(f"Ошибка изменения процента банка: {e}")
 
 # ================== РАССЫЛКА ==================
 @bot.message_handler(func=lambda m: m.text and m.text.lower().startswith("рассылка "))
