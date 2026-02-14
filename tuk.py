@@ -9629,30 +9629,46 @@ def help_next_page(call):
 @bot.callback_query_handler(func=lambda c: c.data.startswith("help_next_2_"))
 def help_next_page_2(call):
     try:
-        user_id = int(call.data.split("_")[3])
-        
+        # Безопасно получаем user_id (после последнего _)
+        user_id = int(call.data.rsplit("_", 1)[1])
+
         if not check_help_owner(call, user_id):
             return
-        
+
         text = "🍉 <b>Панель помощи в боте - СТРАНИЦА 3/3</b>\n\nВыбери раздел:"
-        
+
         kb = InlineKeyboardMarkup(row_width=2)
-        
+
         # Добавляем кнопки разделов по 2 в ряд
         for i in range(0, len(HELP_PAGES[3]), 2):
             row = []
-            # Первая кнопка в ряду
+
             btn_text, callback = HELP_PAGES[3][i]
-            row.append(InlineKeyboardButton(btn_text, callback_data=f"{callback}_{user_id}"))
-            # Вторая кнопка в ряду (если есть)
+            row.append(
+                InlineKeyboardButton(
+                    btn_text,
+                    callback_data=f"{callback}_{user_id}"
+                )
+            )
+
             if i + 1 < len(HELP_PAGES[3]):
                 btn_text2, callback2 = HELP_PAGES[3][i + 1]
-                row.append(InlineKeyboardButton(btn_text2, callback_data=f"{callback2}_{user_id}"))
+                row.append(
+                    InlineKeyboardButton(
+                        btn_text2,
+                        callback_data=f"{callback2}_{user_id}"
+                    )
+                )
+
             kb.row(*row)
-        
-        # Кнопка Назад (без эмодзи)
-        kb.add(InlineKeyboardButton("Назад", callback_data=f"help_back_2_{user_id}"))
-        
+
+        kb.add(
+            InlineKeyboardButton(
+                "Назад",
+                callback_data=f"help_back_2_{user_id}"
+            )
+        )
+
         bot.edit_message_text(
             text,
             call.message.chat.id,
@@ -9660,8 +9676,9 @@ def help_next_page_2(call):
             reply_markup=kb,
             parse_mode="HTML"
         )
+
         bot.answer_callback_query(call.id)
-        
+
     except Exception as e:
         logger.error(f"Ошибка help_next_page_2: {e}")
         bot.answer_callback_query(call.id, "❌ Ошибка!", show_alert=True)
