@@ -8236,24 +8236,30 @@ def start_roulette(message):
 
         time.sleep(2)
 
+        # Генерация результата
         if random.random() < 0.027:
             result_number = 0
             result_color = 'з'
+            color_emoji = "🟢"
         else:
             result_number = random.randint(1, 36)
             result_color = 'ч' if result_number % 2 == 0 else 'к'
+            color_emoji = "⚫" if result_color == 'ч' else "🔴"
 
-        result_text = f"🎰 <b>РУЛЕТКА</b>\n🎲 Выпало: <b>{result_number}</b>\n\n"
+        result_text = f"🎰 <b>РУЛЕТКА</b>\n🎲 Выпало: <b>{result_number}</b> {color_emoji}\n\n"
 
+        # Подсчет выигрышей
         for player_id, bets in roulette_data[chat_id].items():
             player_data = get_user_data(int(player_id))
+
             for bet in bets:
 
                 if bet["type"] == "color":
                     if bet["value"] == result_color:
-                        win = bet["amount"] * (15 if result_color == 'з' else 2)
+                        multiplier = 15 if result_color == 'з' else 2
+                        win = bet["amount"] * multiplier
                         player_data["balance"] += win
-                        result_text += f"✅ {bet['mention']} выиграл {format_number(win)}$\n"
+                        result_text += f"✅ {bet['mention']} выиграл {format_number(win)}$ (x{multiplier})\n"
                     else:
                         result_text += f"❌ {bet['mention']} проиграл\n"
 
@@ -8261,7 +8267,7 @@ def start_roulette(message):
                     if result_number in bet["value"]:
                         win = bet["amount"] * 36
                         player_data["balance"] += win
-                        result_text += f"✅ {bet['mention']} выиграл {format_number(win)}$\n"
+                        result_text += f"✅ {bet['mention']} выиграл {format_number(win)}$ (x36)\n"
                     else:
                         result_text += f"❌ {bet['mention']} проиграл\n"
 
@@ -8269,17 +8275,29 @@ def start_roulette(message):
                     if bet["start"] <= result_number <= bet["end"]:
                         win = bet["amount"] * 36
                         player_data["balance"] += win
-                        result_text += f"✅ {bet['mention']} выиграл {format_number(win)}$\n"
+                        result_text += f"✅ {bet['mention']} выиграл {format_number(win)}$ (x36)\n"
                     else:
                         result_text += f"❌ {bet['mention']} проиграл\n"
 
         save_casino_data()
 
+        # Очистка ставок
         del roulette_data[chat_id]
         save_roulette_bets(roulette_data)
 
-        bot.edit_message_caption(chat_id, spin_msg.message_id, caption=result_text, parse_mode="HTML")
+        # Удаляем GIF (чтобы не было ошибки caption limit)
+        try:
+            bot.delete_message(chat_id, spin_msg.message_id)
+        except:
+            pass
 
+        # Telegram limit 4096 символов
+        if len(result_text) > 4000:
+            result_text = result_text[:4000]
+
+        bot.send_message(chat_id, result_text, parse_mode="HTML")
+
+        # Логирование
         with open(ROULETTE_RESULTS_FILE, "a", encoding="utf-8") as f:
             f.write(f"{result_number}|{result_color}\n")
 
