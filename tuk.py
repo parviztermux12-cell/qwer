@@ -8222,34 +8222,32 @@ def place_bet(message):
 
 @bot.message_handler(func=lambda m: m.text and m.text.lower() == 'го')
 def start_roulette(message):
-    """Запуск рулетки (только для участников)"""
+    """Запуск рулетки - теперь любой может запустить, если есть ставки"""
     try:
         chat_id = message.chat.id
         user_id = message.from_user.id
+        mention = f'<a href="tg://user?id={user_id}">{message.from_user.first_name}</a>'
 
-        # 1. ПРОВЕРКА: Есть ли у ЭТОГО пользователя ставки?
-        if not has_active_bets(chat_id, user_id):
-            # Если у пользователя нет ставок, бот просто игнорирует сообщение.
-            # Можно добавить return, чтобы ничего не делал.
-            # Или, если хочешь уведомить, что он не играет, раскомментируй строку ниже.
-            # bot.send_message(chat_id, "❌ У тебя нет активных ставок в этом чате!", parse_mode="HTML")
-            return
-
-        # 2. Получаем все ставки из этого чата
+        # 1. Получаем все ставки из этого чата
         chat_color_bets = color_bets.get(chat_id, {})
         chat_number_bets = number_bets.get(chat_id, {})
         chat_range_bets = range_bets.get(chat_id, {})
 
-        # Проверяем, есть ли вообще ставки в чате (на случай, если у кого-то одного они были, но словарь пуст)
+        # Проверяем, есть ли вообще ставки в чате
         if not chat_color_bets and not chat_number_bets and not chat_range_bets:
-            bot.send_message(chat_id, "❌ В чате нет активных ставок для запуска!", parse_mode="HTML")
+            bot.send_message(chat_id, "❌ В чате нет активных ставок для запуска рулетки!", parse_mode="HTML")
             return
 
-        # 3. Отправляем анимацию
-        spin_msg = bot.send_animation(chat_id, ROULETTE_SPIN_GIF, caption="🎲 Рулетка крутится...")
+        # 2. Отправляем анимацию
+        spin_msg = bot.send_animation(
+            chat_id, 
+            ROULETTE_SPIN_GIF, 
+            caption=f"🎲 {mention} запускает рулетку... Крутим барабан!",
+            parse_mode="HTML"
+        )
         time.sleep(2)  # Пауза 2 секунды
 
-        # 4. Генерируем результат
+        # 3. Генерируем результат
         if random.random() < 0.027:  # 2.7% шанс на 0 (зеленое)
             result_number = 0
             result_color = 'з'
@@ -8259,61 +8257,62 @@ def start_roulette(message):
             result_color = 'ч' if result_number % 2 == 0 else 'к'
             result_color_emoji = '⚫' if result_color == 'ч' else '🔴'
 
-        # 5. Начинаем формировать текст результата
-        result_text_parts = [f"Рулетка: {result_number}{result_color_emoji}"]
+        # 4. Начинаем формировать текст результата
+        result_text_parts = [f"🎰 <b>РУЛЕТКА</b> | Запустил: {mention}\n"]
+        result_text_parts.append(f"🎲 Выпало: <b>{result_number}</b> {result_color_emoji}\n")
 
         # --- Обработка ставок на цвета ---
         if chat_color_bets:
+            result_text_parts.append("━━ <b>ЦВЕТА</b> ━━")
             for player_id, bets in chat_color_bets.items():
                 player_data = get_user_data(player_id)
-                for bet_amount, color, mention in bets:
+                for bet_amount, color, player_mention in bets:
                     color_emoji = '🔴' if color == 'к' else '⚫' if color == 'ч' else '🟢'
-                    bet_str = f"{mention} {format_number(bet_amount)}$ на {color_emoji}"
-
+                    
                     if result_color == color:
                         multiplier = 2 if color != 'з' else 15
                         winnings = bet_amount * multiplier
                         player_data["balance"] += winnings
-                        result_text_parts.append(f"{bet_str} — выигрыш {format_number(winnings)}$ (x{multiplier})")
+                        result_text_parts.append(f"✅ {player_mention} {format_number(bet_amount)}$ на {color_emoji} — выигрыш {format_number(winnings)}$ (x{multiplier})")
                     else:
-                        result_text_parts.append(f"{bet_str} — проигрыш")
+                        result_text_parts.append(f"❌ {player_mention} {format_number(bet_amount)}$ на {color_emoji} — проигрыш")
 
-        # --- Обработка ставок на числа (одиночные и множественные) ---
+        # --- Обработка ставок на числа ---
         if chat_number_bets:
+            result_text_parts.append("\n━━ <b>ЧИСЛА</b> ━━")
             for player_id, bets_list in chat_number_bets.items():
                 player_data = get_user_data(player_id)
-                for bet_amount, numbers, mention in bets_list:
+                for bet_amount, numbers, player_mention in bets_list:
                     total_bet = bet_amount * len(numbers)
                     numbers_str = ', '.join(map(str, numbers))
-                    bet_str = f"{mention} {format_number(bet_amount)}$ на {numbers_str}"
-
+                    
                     if result_number in numbers:
                         winnings = bet_amount * 36
                         player_data["balance"] += winnings
-                        result_text_parts.append(f"{bet_str} — выигрыш {format_number(winnings)}$ (x36!)")
+                        result_text_parts.append(f"✅ {player_mention} {format_number(bet_amount)}$ на {numbers_str} — выигрыш {format_number(winnings)}$ (x36!)")
                     else:
-                        result_text_parts.append(f"{bet_str} — проигрыш (-{format_number(total_bet)}$)")
+                        result_text_parts.append(f"❌ {player_mention} {format_number(bet_amount)}$ на {numbers_str} — проигрыш (-{format_number(total_bet)}$)")
 
         # --- Обработка ставок на диапазоны ---
         if chat_range_bets:
+            result_text_parts.append("\n━━ <b>ДИАПАЗОНЫ</b> ━━")
             for player_id, bets_list in chat_range_bets.items():
                 player_data = get_user_data(player_id)
-                for bet_amount, start, end, mention in bets_list:
+                for bet_amount, start, end, player_mention in bets_list:
                     range_size = end - start + 1
                     total_bet = bet_amount * range_size
-                    bet_str = f"{mention} {format_number(bet_amount)}$ на {start}-{end}"
-
+                    
                     if start <= result_number <= end:
                         winnings = bet_amount * 36
                         player_data["balance"] += winnings
-                        result_text_parts.append(f"{bet_str} — выигрыш {format_number(winnings)}$ (x36!)")
+                        result_text_parts.append(f"✅ {player_mention} {format_number(bet_amount)}$ на {start}-{end} — выигрыш {format_number(winnings)}$ (x36!)")
                     else:
-                        result_text_parts.append(f"{bet_str} — проигрыш (-{format_number(total_bet)}$)")
+                        result_text_parts.append(f"❌ {player_mention} {format_number(bet_amount)}$ на {start}-{end} — проигрыш (-{format_number(total_bet)}$)")
 
         # Сохраняем все изменения балансов
         save_casino_data()
 
-        # 6. Очищаем все ставки для этого чата
+        # 5. Очищаем все ставки для этого чата
         if chat_id in color_bets:
             del color_bets[chat_id]
         if chat_id in number_bets:
@@ -8321,17 +8320,14 @@ def start_roulette(message):
         if chat_id in range_bets:
             del range_bets[chat_id]
 
-        # 7. Отправляем результат
+        # 6. Отправляем результат
         final_text = "\n".join(result_text_parts)
         bot.edit_message_caption(chat_id, spin_msg.message_id, caption=final_text, parse_mode="HTML")
         log_roulette(chat_id, result_number, result_color)
 
     except Exception as e:
         logger.error(f"Ошибка запуска рулетки: {e}")
-        # Не отправляем сообщение об ошибке в чат, чтобы не спамить, если что-то пошло не так.
-        # Но можно раскомментировать для отладки:
-        # bot.send_message(message.chat.id, f"❌ Ошибка: {e}")
-
+        bot.send_message(message.chat.id, f"❌ Произошла ошибка при запуске рулетки!")
 
 # ================== КОМАНДА ЛОГИ РУЛЕТКИ ==================
 
