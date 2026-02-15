@@ -9581,37 +9581,40 @@ def cmd_help(message):
         parse_mode="HTML"
     )
 
-# ---------- ОБРАБОТЧИК КНОПКИ ВПЕРЁД (СТРАНИЦА 2) ----------
-@bot.callback_query_handler(func=lambda c: c.data.startswith("help_next_"))
+# ---------- ОБРАБОТЧИК КНОПКИ ВПЕРЁД (НА СТРАНИЦУ 2) ----------
+@bot.callback_query_handler(func=lambda c: c.data.startswith("help_next_") and not c.data.startswith("help_next_2_"))
 def help_next_page(call):
     try:
-        user_id = int(call.data.split("_")[2])
-        
+        user_id = int(call.data.rsplit("_", 1)[1])
+
         if not check_help_owner(call, user_id):
             return
-        
+
         text = "🍉 <b>Панель помощи в боте - СТРАНИЦА 2/3</b>\n\nВыбери раздел:"
-        
+
         kb = InlineKeyboardMarkup(row_width=2)
-        
-        # Добавляем кнопки разделов по 2 в ряд
+
         for i in range(0, len(HELP_PAGES[2]), 2):
             row = []
-            # Первая кнопка в ряду
+
             btn_text, callback = HELP_PAGES[2][i]
-            row.append(InlineKeyboardButton(btn_text, callback_data=f"{callback}_{user_id}"))
-            # Вторая кнопка в ряду (если есть)
+            row.append(
+                InlineKeyboardButton(btn_text, callback_data=f"{callback}_{user_id}")
+            )
+
             if i + 1 < len(HELP_PAGES[2]):
                 btn_text2, callback2 = HELP_PAGES[2][i + 1]
-                row.append(InlineKeyboardButton(btn_text2, callback_data=f"{callback2}_{user_id}"))
+                row.append(
+                    InlineKeyboardButton(btn_text2, callback_data=f"{callback2}_{user_id}")
+                )
+
             kb.row(*row)
-        
-        # Кнопки навигации (без эмодзи)
+
         kb.add(
             InlineKeyboardButton("Назад", callback_data=f"help_back_{user_id}"),
             InlineKeyboardButton("Вперёд", callback_data=f"help_next_2_{user_id}")
         )
-        
+
         bot.edit_message_text(
             text,
             call.message.chat.id,
@@ -9619,17 +9622,18 @@ def help_next_page(call):
             reply_markup=kb,
             parse_mode="HTML"
         )
+
         bot.answer_callback_query(call.id)
-        
+
     except Exception as e:
         logger.error(f"Ошибка help_next_page: {e}")
         bot.answer_callback_query(call.id, "❌ Ошибка!", show_alert=True)
 
-# ---------- ОБРАБОТЧИК КНОПКИ ВПЕРЁД (СТРАНИЦА 3) ----------
+
+# ---------- ОБРАБОТЧИК КНОПКИ ВПЕРЁД (НА СТРАНИЦУ 3) ----------
 @bot.callback_query_handler(func=lambda c: c.data.startswith("help_next_2_"))
 def help_next_page_2(call):
     try:
-        # Безопасно получаем user_id (после последнего _)
         user_id = int(call.data.rsplit("_", 1)[1])
 
         if not check_help_owner(call, user_id):
@@ -9639,34 +9643,24 @@ def help_next_page_2(call):
 
         kb = InlineKeyboardMarkup(row_width=2)
 
-        # Добавляем кнопки разделов по 2 в ряд
         for i in range(0, len(HELP_PAGES[3]), 2):
             row = []
 
             btn_text, callback = HELP_PAGES[3][i]
             row.append(
-                InlineKeyboardButton(
-                    btn_text,
-                    callback_data=f"{callback}_{user_id}"
-                )
+                InlineKeyboardButton(btn_text, callback_data=f"{callback}_{user_id}")
             )
 
             if i + 1 < len(HELP_PAGES[3]):
                 btn_text2, callback2 = HELP_PAGES[3][i + 1]
                 row.append(
-                    InlineKeyboardButton(
-                        btn_text2,
-                        callback_data=f"{callback2}_{user_id}"
-                    )
+                    InlineKeyboardButton(btn_text2, callback_data=f"{callback2}_{user_id}")
                 )
 
             kb.row(*row)
 
         kb.add(
-            InlineKeyboardButton(
-                "Назад",
-                callback_data=f"help_back_2_{user_id}"
-            )
+            InlineKeyboardButton("Назад", callback_data=f"help_back_2_{user_id}")
         )
 
         bot.edit_message_text(
@@ -9683,37 +9677,41 @@ def help_next_page_2(call):
         logger.error(f"Ошибка help_next_page_2: {e}")
         bot.answer_callback_query(call.id, "❌ Ошибка!", show_alert=True)
 
-# ---------- ОБРАБОТЧИК КНОПКИ НАЗАД (СО СТРАНИЦЫ 3 НА СТРАНИЦУ 2) ----------
+
+# ---------- ОБРАБОТЧИК КНОПКИ НАЗАД (С 3 НА 2) ----------
 @bot.callback_query_handler(func=lambda c: c.data.startswith("help_back_2_"))
 def help_back_page_2(call):
     try:
-        user_id = int(call.data.split("_")[3])
-        
+        user_id = int(call.data.rsplit("_", 1)[1])
+
         if not check_help_owner(call, user_id):
             return
-        
+
         text = "🍉 <b>Панель помощи в боте - СТРАНИЦА 2/3</b>\n\nВыбери раздел:"
-        
+
         kb = InlineKeyboardMarkup(row_width=2)
-        
-        # Добавляем кнопки разделов по 2 в ряд
+
         for i in range(0, len(HELP_PAGES[2]), 2):
             row = []
-            # Первая кнопка в ряду
+
             btn_text, callback = HELP_PAGES[2][i]
-            row.append(InlineKeyboardButton(btn_text, callback_data=f"{callback}_{user_id}"))
-            # Вторая кнопка в ряду (если есть)
+            row.append(
+                InlineKeyboardButton(btn_text, callback_data=f"{callback}_{user_id}")
+            )
+
             if i + 1 < len(HELP_PAGES[2]):
                 btn_text2, callback2 = HELP_PAGES[2][i + 1]
-                row.append(InlineKeyboardButton(btn_text2, callback_data=f"{callback2}_{user_id}"))
+                row.append(
+                    InlineKeyboardButton(btn_text2, callback_data=f"{callback2}_{user_id}")
+                )
+
             kb.row(*row)
-        
-        # Кнопки навигации (без эмодзи)
+
         kb.add(
             InlineKeyboardButton("Назад", callback_data=f"help_back_{user_id}"),
             InlineKeyboardButton("Вперёд", callback_data=f"help_next_2_{user_id}")
         )
-        
+
         bot.edit_message_text(
             text,
             call.message.chat.id,
@@ -9721,8 +9719,9 @@ def help_back_page_2(call):
             reply_markup=kb,
             parse_mode="HTML"
         )
+
         bot.answer_callback_query(call.id)
-        
+
     except Exception as e:
         logger.error(f"Ошибка help_back_page_2: {e}")
         bot.answer_callback_query(call.id, "❌ Ошибка!", show_alert=True)
@@ -9769,18 +9768,22 @@ def help_back_page(call):
         bot.answer_callback_query(call.id, "❌ Ошибка!", show_alert=True)
 
 # ---------- ОБРАБОТЧИК РАЗДЕЛОВ ПОМОЩИ ----------
-@bot.callback_query_handler(func=lambda c: c.data.startswith(("help_cmds_", "help_games_", "help_vip_", "help_tyanki_", 
-                                                              "help_pets_", "help_marriage_", "help_events_", "help_donate_",
-                                                              "help_rp_")))
+@bot.callback_query_handler(func=lambda c: c.data.startswith((
+    "help_cmds_", "help_games_", "help_vip_", "help_tyanki_",
+    "help_pets_", "help_marriage_", "help_events_", "help_donate_",
+    "help_rp_"
+)))
 def help_section_handler(call):
     try:
-        parts = call.data.split("_")
-        section = parts[1]
-        user_id = int(parts[2])
-        
+        # Берём user_id после последнего "_"
+        user_id = int(call.data.rsplit("_", 1)[1])
+
         if not check_help_owner(call, user_id):
             return
-        
+
+        # Получаем section между "help_" и "_user_id"
+        section = call.data[len("help_"):].rsplit("_", 1)[0]
+
         if section == "cmds":
             content = HELP_CONTENT["cmds"]
         elif section == "games":
@@ -9801,17 +9804,15 @@ def help_section_handler(call):
             content = HELP_CONTENT["rp"]
         else:
             content = "❌ Раздел не найден"
-        
+
         kb = InlineKeyboardMarkup()
-        
-        # Определяем, на какую страницу возвращаться
+
+        # Определяем страницу возврата
         if section in ["cmds", "games", "vip", "tyanki"]:
             kb.add(InlineKeyboardButton("Назад", callback_data=f"help_back_{user_id}"))
-        elif section in ["pets", "marriage", "events", "donate"]:
+        else:
             kb.add(InlineKeyboardButton("Назад", callback_data=f"help_back_2_{user_id}"))
-        elif section == "rp":
-            kb.add(InlineKeyboardButton("Назад", callback_data=f"help_back_2_{user_id}"))
-        
+
         bot.edit_message_text(
             content,
             call.message.chat.id,
@@ -9819,8 +9820,9 @@ def help_section_handler(call):
             reply_markup=kb,
             parse_mode="HTML"
         )
+
         bot.answer_callback_query(call.id)
-        
+
     except Exception as e:
         logger.error(f"Ошибка help_section_handler: {e}")
         bot.answer_callback_query(call.id, "❌ Ошибка!", show_alert=True)
