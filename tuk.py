@@ -1805,7 +1805,9 @@ def gardener_water_callback(call):
 @bot.callback_query_handler(func=lambda c: c.data.startswith("gardener_sell_all_") and "confirm" not in c.data and "cancel" not in c.data)
 def gardener_sell_all_prompt(call):
     try:
-        user_id = int(call.data.split("_")[2])
+        # Разбираем данные: gardener_sell_all_USERID
+        parts = call.data.split("_")
+        user_id = int(parts[3])  # Индекс 3, потому что: gardener(0) sell(1) all(2) USERID(3)
         
         # Проверяем владельца кнопки
         if call.from_user.id != user_id:
@@ -1853,7 +1855,9 @@ def gardener_sell_all_prompt(call):
 @bot.callback_query_handler(func=lambda c: c.data.startswith("gardener_confirm_sell_"))
 def gardener_confirm_sell(call):
     try:
-        user_id = int(call.data.split("_")[3])
+        # Разбираем данные: gardener_confirm_sell_USERID
+        parts = call.data.split("_")
+        user_id = int(parts[3])  # Индекс 3, потому что: gardener(0) confirm(1) sell(2) USERID(3)
         
         # Проверяем владельца кнопки
         if call.from_user.id != user_id:
@@ -1915,20 +1919,21 @@ def gardener_confirm_sell(call):
 @bot.callback_query_handler(func=lambda c: c.data.startswith("gardener_cancel_sell_"))
 def gardener_cancel_sell(call):
     try:
-        user_id = int(call.data.split("_")[3])
+        # Разбираем данные: gardener_cancel_sell_USERID
+        parts = call.data.split("_")
+        user_id = int(parts[3])  # Индекс 3, потому что: gardener(0) cancel(1) sell(2) USERID(3)
         
         # Проверяем владельца кнопки
         if call.from_user.id != user_id:
             bot.answer_callback_query(call.id, "❌ Это не твоя кнопка!", show_alert=True)
             return
         
-        # Возвращаемся в меню растений (просто вызываем gardener_back)
+        # Возвращаемся в меню растений
         class FakeCall:
             def __init__(self, message, from_user, data):
                 self.message = message
                 self.from_user = from_user
                 self.data = data
-                self.id = call.id
         
         fake_call = FakeCall(call.message, call.from_user, f"gardener_back_{user_id}")
         gardener_back(fake_call)
