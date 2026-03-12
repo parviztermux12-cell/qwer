@@ -2043,27 +2043,69 @@ def gardener_back(call):
             bot.answer_callback_query(call.id, "❌ Это не твоя кнопка!", show_alert=True)
             return
         
-        # Возвращаем в меню растений
-        class FakeMessage:
-            def __init__(self, chat_id, from_user):
-                self.chat = type('Chat', (), {'id': chat_id})()
-                self.from_user = from_user
+        # Получаем данные для отображения
+        mention = f'<a href="tg://user?id={user_id}">{call.from_user.first_name}</a>'
         
-        fake_msg = FakeMessage(call.message.chat.id, call.from_user)
-        my_plants(fake_msg)
+        stats = get_gardening_stats(user_id)
         
-        try:
-            bot.delete_message(call.message.chat.id, call.message.message_id)
-        except:
-            pass
+        # Рассчитываем время до продажи
+        growing_plants = get_user_plants(user_id, "growing")
+        max_time_remaining = "—"
+        
+        if growing_plants:
+            max_minutes = 0
+            for plant in growing_plants:
+                planted = plant[3]
+                grow_time = plant[6]
+                planted_dt = datetime.fromisoformat(planted)
+                ready_dt = planted_dt + timedelta(minutes=grow_time)
+                now = datetime.now()
+                
+                if now < ready_dt:
+                    remaining = (ready_dt - now).seconds // 60
+                    if remaining > max_minutes:
+                        max_minutes = remaining
+            
+            if max_minutes > 0:
+                hours = max_minutes // 60
+                minutes = max_minutes % 60
+                if hours > 0:
+                    max_time_remaining = f"{hours}ч {minutes}м"
+                else:
+                    max_time_remaining = f"{minutes}м"
+            else:
+                max_time_remaining = "Скоро созреют"
+        
+        text = (
+            f"🌿 Привет {mention}, это твое меню где ты можешь следить за своими растениями, продавать, расти.\n\n"
+            f"🍀 Всего растений: <code>{stats['total_plants_ever']}</code>\n"
+            f"🌰 Сейчас растёт: <code>{stats['growing_count']}</code> растений\n"
+            f"🌷 Осталось ждать до продажи: <code>{max_time_remaining}</code>"
+        )
+        
+        # Создаем клавиатуру со стикерами
+        kb = InlineKeyboardMarkup(row_width=2)
+        kb.add(InlineKeyboardButton("💧 Полить", callback_data=f"gardener_water_{user_id}"))
+        
+        if stats['ready_count'] > 0:
+            kb.add(InlineKeyboardButton("💰 Продать все", callback_data=f"gardener_sell_all_{user_id}"))
+        
+        kb.add(InlineKeyboardButton("🛒 Купить саженцы", callback_data=f"gardener_shop_{user_id}"))
+        
+        # Редактируем существующее сообщение
+        bot.edit_message_text(
+            text,
+            call.message.chat.id,
+            call.message.message_id,
+            parse_mode="HTML",
+            reply_markup=kb
+        )
         
         bot.answer_callback_query(call.id)
         
     except Exception as e:
         logger.error(f"Ошибка возврата: {e}")
         bot.answer_callback_query(call.id, "❌ Ошибка!", show_alert=True)
-
-print("✅ Ивент 'Садовник' с 10 растениями загружен! 🌱")
     
     # ================== 🍬 НОВАЯ ИГРА: КОНФЕТКА (CANDY HUNT) ==================
 # Команда: конфетка [ставка] или конфета [ставка]
