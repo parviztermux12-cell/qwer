@@ -1744,14 +1744,14 @@ def my_plants(message):
     kb = InlineKeyboardMarkup(row_width=2)
     
     # Кнопка Полить (всегда доступна, проверка будет в обработчике)
-    kb.add(InlineKeyboardButton("Полить", callback_data=f"gardener_water_{user_id}"))
+    kb.add(InlineKeyboardButton("💧Полить", callback_data=f"gardener_water_{user_id}"))
     
     # Кнопка Продать все (только если есть готовые растения)
     if stats['ready_count'] > 0:
-        kb.add(InlineKeyboardButton("Продать все", callback_data=f"gardener_sell_all_{user_id}"))
+        kb.add(InlineKeyboardButton("🍈 Продать все", callback_data=f"gardener_sell_all_{user_id}"))
     
     # Кнопка Купить саженцы
-    kb.add(InlineKeyboardButton("Купить саженцы", callback_data=f"gardener_shop_{user_id}"))
+    kb.add(InlineKeyboardButton("🌿 Купить саженцы", callback_data=f"gardener_shop_{user_id}"))
     
     bot.reply_to(message, text, parse_mode="HTML", reply_markup=kb)
 
@@ -2038,7 +2038,9 @@ def gardener_back(call):
     try:
         user_id = int(call.data.split("_")[2])
         
-        if not check_gardener_button_owner(call, user_id):
+        # Проверяем владельца кнопки
+        if call.from_user.id != user_id:
+            bot.answer_callback_query(call.id, "❌ Это не твоя кнопка!", show_alert=True)
             return
         
         # Возвращаем в меню растений
