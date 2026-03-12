@@ -1807,7 +1807,9 @@ def gardener_sell_all_prompt(call):
     try:
         user_id = int(call.data.split("_")[2])
         
-        if not check_gardener_button_owner(call, user_id):
+        # Проверяем владельца кнопки
+        if call.from_user.id != user_id:
+            bot.answer_callback_query(call.id, "❌ Это не твоя кнопка!", show_alert=True)
             return
         
         stats = get_gardening_stats(user_id)
@@ -1853,7 +1855,9 @@ def gardener_confirm_sell(call):
     try:
         user_id = int(call.data.split("_")[3])
         
-        if not check_gardener_button_owner(call, user_id):
+        # Проверяем владельца кнопки
+        if call.from_user.id != user_id:
+            bot.answer_callback_query(call.id, "❌ Это не твоя кнопка!", show_alert=True)
             return
         
         stats = get_gardening_stats(user_id)
@@ -1913,22 +1917,21 @@ def gardener_cancel_sell(call):
     try:
         user_id = int(call.data.split("_")[3])
         
-        if not check_gardener_button_owner(call, user_id):
+        # Проверяем владельца кнопки
+        if call.from_user.id != user_id:
+            bot.answer_callback_query(call.id, "❌ Это не твоя кнопка!", show_alert=True)
             return
         
-        # Возвращаем в меню растений
-        class FakeMessage:
-            def __init__(self, chat_id, from_user):
-                self.chat = type('Chat', (), {'id': chat_id})()
+        # Возвращаемся в меню растений (просто вызываем gardener_back)
+        class FakeCall:
+            def __init__(self, message, from_user, data):
+                self.message = message
                 self.from_user = from_user
+                self.data = data
+                self.id = call.id
         
-        fake_msg = FakeMessage(call.message.chat.id, call.from_user)
-        my_plants(fake_msg)
-        
-        try:
-            bot.delete_message(call.message.chat.id, call.message.message_id)
-        except:
-            pass
+        fake_call = FakeCall(call.message, call.from_user, f"gardener_back_{user_id}")
+        gardener_back(fake_call)
         
         bot.answer_callback_query(call.id, "❌ Продажа отменена")
         
