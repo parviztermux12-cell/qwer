@@ -20565,39 +20565,7 @@ def update_withdrawal_status(request_id, status):
     conn.commit()
     conn.close()
 
-# ================== ПОДСЧЁТ СООБЩЕНИЙ БЕЗ БЛОКИРОВКИ КОМАНД ==================
-# Этот декоратор срабатывает на ВСЕ сообщения, но НЕ БЛОКИРУЕТ другие обработчики
 
-@bot.message_handler(func=lambda message: True)
-def count_messages_silent(message):
-    """
-    Считает текстовые сообщения в указанном чате.
-    Не блокирует другие команды, потому что:
-    1. Проверяет чат в первую очередь
-    2. Не имеет return
-    3. Не влияет на выполнение других хендлеров
-    """
-    try:
-        # Быстрая проверка чата - если не тот чат, сразу выходим
-        if message.chat.id != STAR_CHAT_ID:
-            return
-        
-        # Проверяем, что это текст и не бот
-        if not message.text or message.from_user.is_bot:
-            return
-        
-        # Считаем сообщение (функция сама обработает ошибки)
-        total_msgs, total_stars = update_user_star_stats(message.from_user.id)
-        
-        # Редко логируем (каждое 50-е сообщение)
-        if total_msgs % 50 == 0:
-            logger.info(f"⭐ Статистика: {message.from_user.id} | Сообщений: {total_msgs} | Звёзд: {total_stars:.2f}")
-            
-    except Exception as e:
-        # Тихо логируем ошибки, не мешая работе
-        logger.debug(f"Ошибка подсчёта сообщений: {e}")
-    
-    # Важно! Ничего не возвращаем, чтобы не блокировать цепочку
 
 # ================== КОМАНДА: МОИ ЗВЁЗДЫ ==================
 @bot.message_handler(func=lambda m: m.text and m.text.lower() in ["мои звёзды", "звёзды", "мои звезды"])
@@ -21007,6 +20975,39 @@ def star_stats_admin(message):
         text += f"{i}. <a href='tg://user?id={uid}'>{name}</a> — {stars:.2f}⭐\n"
     
     bot.send_message(message.chat.id, text, parse_mode="HTML")
+    # ================== ПОДСЧЁТ СООБЩЕНИЙ БЕЗ БЛОКИРОВКИ КОМАНД ==================
+# Этот декоратор срабатывает на ВСЕ сообщения, но НЕ БЛОКИРУЕТ другие обработчики
+
+@bot.message_handler(func=lambda message: True)
+def count_messages_silent(message):
+    """
+    Считает текстовые сообщения в указанном чате.
+    Не блокирует другие команды, потому что:
+    1. Проверяет чат в первую очередь
+    2. Не имеет return
+    3. Не влияет на выполнение других хендлеров
+    """
+    try:
+        # Быстрая проверка чата - если не тот чат, сразу выходим
+        if message.chat.id != STAR_CHAT_ID:
+            return
+        
+        # Проверяем, что это текст и не бот
+        if not message.text or message.from_user.is_bot:
+            return
+        
+        # Считаем сообщение (функция сама обработает ошибки)
+        total_msgs, total_stars = update_user_star_stats(message.from_user.id)
+        
+        # Редко логируем (каждое 50-е сообщение)
+        if total_msgs % 50 == 0:
+            logger.info(f"⭐ Статистика: {message.from_user.id} | Сообщений: {total_msgs} | Звёзд: {total_stars:.2f}")
+            
+    except Exception as e:
+        # Тихо логируем ошибки, не мешая работе
+        logger.debug(f"Ошибка подсчёта сообщений: {e}")
+    
+    # Важно! Ничего не возвращаем, чтобы не блокировать цепочку
 # ================== ЗАПУСК БОТА ==================
 if __name__ == "__main__":
     logger.info("Бот Iris запущен!")
