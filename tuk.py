@@ -20565,39 +20565,39 @@ def update_withdrawal_status(request_id, status):
     conn.commit()
     conn.close()
 
-# ================== ГЛОБАЛЬНЫЙ ОБРАБОТЧИК ДЛЯ ПОДСЧЁТА СООБЩЕНИЙ ==================
-# ВАЖНО: Этот обработчик имеет самый низкий приоритет и НЕ БЛОКИРУЕТ другие команды
-@bot.message_handler(func=lambda message: True, content_types=['text'])
-def count_messages_handler(message):
+# ================== ПОДСЧЁТ СООБЩЕНИЙ БЕЗ БЛОКИРОВКИ КОМАНД ==================
+# Этот декоратор срабатывает на ВСЕ сообщения, но НЕ БЛОКИРУЕТ другие обработчики
+
+@bot.message_handler(func=lambda message: True)
+def count_messages_silent(message):
     """
-    Глобальный обработчик для подсчёта текстовых сообщений.
-    Работает ТОЛЬКО в указанном чате и считает ЛЮБЫЕ текстовые сообщения,
-    включая команды, но НЕ МЕШАЕТ их работе.
+    Считает текстовые сообщения в указанном чате.
+    Не блокирует другие команды, потому что:
+    1. Проверяет чат в первую очередь
+    2. Не имеет return
+    3. Не влияет на выполнение других хендлеров
     """
     try:
-        # Проверяем, что сообщение из нужного чата
+        # Быстрая проверка чата - если не тот чат, сразу выходим
         if message.chat.id != STAR_CHAT_ID:
-            return True  # Не наш чат - пропускаем дальше
+            return
         
-        # Получаем ID пользователя
-        user_id = message.from_user.id
+        # Проверяем, что это текст и не бот
+        if not message.text or message.from_user.is_bot:
+            return
         
-        # Пропускаем сообщения от ботов
-        if message.from_user.is_bot:
-            return True
+        # Считаем сообщение (функция сама обработает ошибки)
+        total_msgs, total_stars = update_user_star_stats(message.from_user.id)
         
-        # Обновляем статистику пользователя (добавляем 1 сообщение)
-        total_msgs, total_stars = update_user_star_stats(user_id)
-        
-        # Логируем для отладки
-        if total_msgs % 10 == 0:  # Логируем каждое 10-е сообщение
-            logger.info(f"⭐ {user_id} | Всего: {total_msgs} | Звёзд: {total_stars:.3f}")
-        
+        # Редко логируем (каждое 50-е сообщение)
+        if total_msgs % 50 == 0:
+            logger.info(f"⭐ Статистика: {message.from_user.id} | Сообщений: {total_msgs} | Звёзд: {total_stars:.2f}")
+            
     except Exception as e:
-        logger.error(f"Ошибка в подсчёте сообщений: {e}")
+        # Тихо логируем ошибки, не мешая работе
+        logger.debug(f"Ошибка подсчёта сообщений: {e}")
     
-    # ВАЖНО! Возвращаем True, чтобы другие обработчики тоже получили сообщение
-    return True
+    # Важно! Ничего не возвращаем, чтобы не блокировать цепочку
 
 # ================== КОМАНДА: МОИ ЗВЁЗДЫ ==================
 @bot.message_handler(func=lambda m: m.text and m.text.lower() in ["мои звёзды", "звёзды", "мои звезды"])
