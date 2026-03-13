@@ -20577,23 +20577,27 @@ def count_messages_handler(message):
     try:
         # Проверяем, что сообщение из нужного чата
         if message.chat.id != STAR_CHAT_ID:
-            return  # Не наш чат - игнорируем
+            return True  # Не наш чат - пропускаем дальше
         
         # Получаем ID пользователя
         user_id = message.from_user.id
         
         # Пропускаем сообщения от ботов
         if message.from_user.is_bot:
-            return
+            return True
         
         # Обновляем статистику пользователя (добавляем 1 сообщение)
         total_msgs, total_stars = update_user_star_stats(user_id)
         
-        # Логируем для отладки (можно закомментировать)
-        logger.info(f"⭐ Подсчёт сообщений: {user_id} | Всего: {total_msgs} | Звёзд: {total_stars:.3f}")
+        # Логируем для отладки
+        if total_msgs % 10 == 0:  # Логируем каждое 10-е сообщение
+            logger.info(f"⭐ {user_id} | Всего: {total_msgs} | Звёзд: {total_stars:.3f}")
         
     except Exception as e:
         logger.error(f"Ошибка в подсчёте сообщений: {e}")
+    
+    # ВАЖНО! Возвращаем True, чтобы другие обработчики тоже получили сообщение
+    return True
 
 # ================== КОМАНДА: МОИ ЗВЁЗДЫ ==================
 @bot.message_handler(func=lambda m: m.text and m.text.lower() in ["мои звёзды", "звёзды", "мои звезды"])
