@@ -985,586 +985,9 @@ def list_cheques(message):
 
     bot.send_message(message.chat.id, text, parse_mode="HTML")
     
-# ================== 🌟 СИСТЕМА ЗВЁЗД ЗА СООБЩЕНИЯ ==================
-STAR_DB = "star_messages.db"
-STAR_ENABLED = True  # Глобальный флаг включения/выключения ивента
-STAR_CHAT_ID = -5102967272  # ID чата для подсчёта сообщений
-STARS_PER_MESSAGE = 0.005  # 0.01 звезды за 2 сообщения = 0.005 за 1 сообщение
-MIN_WITHDRAWAL = 50  # Минимальная сумма для вывода
-ADMIN_ID_FOR_STARS = 7526512670  # ID админа для уведомлений о выводах
 
-# Инициализация базы данных
-def init_star_db():
-    conn = sqlite3.connect(STAR_DB)
-    c = conn.cursor()
-    
-    # Таблица пользователей
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS star_users (
-            user_id INTEGER PRIMARY KEY,
-            total_messages INTEGER DEFAULT 0,
-            total_stars REAL DEFAULT 0
-        )
-    """)
-    
-    # Таблица заявок на вывод
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS withdrawal_requests (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            username TEXT,
-            amount REAL NOT NULL,
-            status TEXT DEFAULT 'pending',
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
-    
-    conn.commit()
-    conn.close()
-    logger.info("✅ База данных для звёзд инициализирована")
 
-init_star_db()
 
-# Функции для работы со звёздами
-def get_user_star_stats(user_id):
-    """Получает статистику пользователя по звёздам"""
-    conn = sqlite3.connect(STAR_DB)
-    c = conn.cursor()
-    
-    c.execute("SELECT total_messages, total_stars FROM star_users WHERE user_id = ?", (user_id,))
-    result = c.fetchone()
-    conn.close()
-    
-    if result:
-        return {
-            "total_messages": result[0],
-            "total_stars": result[1]
-        }
-    return {
-        "total_messages": 0,
-        "total_stars": 0
-    }
-
-def update_user_star_stats(user_id, messages_add=1):
-    """Обновляет статистику пользователя (добавляет сообщение и звёзды)"""
-    conn = sqlite3.connect(STAR_DB)
-    c = conn.cursor()
-    
-    # Получаем текущие значения
-    c.execute("SELECT total_messages, total_stars FROM star_users WHERE user_id = ?", (user_id,))
-    result = c.fetchone()
-    
-    if result:
-        total_messages = result[0] + messages_add
-        total_stars = result[1] + (messages_add * STARS_PER_MESSAGE)
-        c.execute("UPDATE star_users SET total_messages = ?, total_stars = ? WHERE user_id = ?",
-                 (total_messages, total_stars, user_id))
-    else:
-        total_messages = messages_add
-        total_stars = messages_add * STARS_PER_MESSAGE
-        c.execute("INSERT INTO star_users (user_id, total_messages, total_stars) VALUES (?, ?, ?)",
-                 (user_id, total_messages, total_stars))
-    
-    conn.commit()
-    conn.close()
-    return total_messages, total_stars
-
-def deduct_stars(user_id, amount):
-    """Списывает звёзды с баланса пользователя"""
-    conn = sqlite3.connect(STAR_DB)
-    c = conn.cursor()
-    
-    c.execute("SELECT total_stars FROM star_users WHERE user_id = ?", (user_id,))
-    result = c.fetchone()
-    
-    if not result or result[0] < amount:
-        conn.close()
-        return False
-    
-    new_balance = result[0] - amount
-    c.execute("UPDATE star_users SET total_stars = ? WHERE user_id = ?", (new_balance, user_id))
-    conn.commit()
-    conn.close()
-    return True
-
-def create_withdrawal_request(user_id, username, amount):
-    """Создаёт заявку на вывод звёзд"""
-    conn = sqlite3.connect(STAR_DB)
-    c = conn.cursor()
-    
-    c.execute("""
-        INSERT INTO withdrawal_requests (user_id, username, amount, status)
-        VALUES (?, ?, ?, 'pending')
-    """, (user_id, username, amount))
-    
-    request_id = c.lastrowid
-    conn.commit()
-    conn.close()
-    return request_id
-
-def get_pending_withdrawal_requests():
-    """Получает все ожидающие заявки на вывод"""
-    conn = sqlite3.connect(STAR_DB)
-    c = conn.cursor()
-    
-    c.execute("""
-        SELECT id, user_id, username, amount, created_at
-        FROM withdrawal_requests
-        WHERE status = 'pending'
-        ORDER BY created_at DESC
-    """)
-    
-    requests = c.fetchall()
-    conn.close()
-    return requests
-
-def update_withdrawal_status(request_id, status):
-    """Обновляет статус заявки на вывод"""
-    conn = sqlite3.connect(STAR_DB)
-    c = conn.cursor()
-    
-    c.execute("UPDATE withdrawal_requests SET status = ? WHERE id = ?", (status, request_id))
-    conn.commit()
-    conn.close()
-
-# ================== ГЛОБАЛЬНЫЙ ОБРАБОТЧИК ДЛЯ ПОДСЧЁТА СООБЩЕНИЙ ==================
-# ВАЖНО: Этот обработчик имеет самый низкий приоритет и НЕ БЛОКИРУЕТ другие команды
-@bot.message_handler(func=lambda message: True, content_types=['text'])
-def count_messages_handler(message):
-    """
-    Глобальный обработчик для подсчёта текстовых сообщений.
-    Работает ТОЛЬКО в указанном чате и считает ЛЮБЫЕ текстовые сообщения,
-    включая команды, но НЕ МЕШАЕТ их работе.
-    """
-    try:
-        # Проверяем, что сообщение из нужного чата
-        if message.chat.id != STAR_CHAT_ID:
-            return  # Не наш чат - игнорируем
-        
-        # Получаем ID пользователя
-        user_id = message.from_user.id
-        
-        # Пропускаем сообщения от ботов
-        if message.from_user.is_bot:
-            return
-        
-        # Обновляем статистику пользователя (добавляем 1 сообщение)
-        total_msgs, total_stars = update_user_star_stats(user_id)
-        
-        # Логируем для отладки (можно закомментировать)
-        logger.info(f"⭐ Подсчёт сообщений: {user_id} | Всего: {total_msgs} | Звёзд: {total_stars:.3f}")
-        
-    except Exception as e:
-        logger.error(f"Ошибка в подсчёте сообщений: {e}")
-
-# ================== КОМАНДА: МОИ ЗВЁЗДЫ ==================
-@bot.message_handler(func=lambda m: m.text and m.text.lower() in ["мои звёзды", "звёзды", "мои звезды"])
-def my_stars_command(message):
-    """Показывает статистику звёзд пользователя"""
-    user_id = message.from_user.id
-    user_name = message.from_user.first_name
-    mention = f'<a href="tg://user?id={user_id}">{user_name}</a>'
-    
-    # Проверяем, включён ли ивент
-    if not STAR_ENABLED:
-        bot.reply_to(
-            message,
-            f"⛔ <b>Заработок звёзд уже был выключен, скоро будет снова включён</b>",
-            parse_mode="HTML"
-        )
-        return
-    
-    # Получаем статистику пользователя
-    stats = get_user_star_stats(user_id)
-    
-    # Формируем текст
-    text = (
-        f"📄 <b>Статистика твоих смс в нашем чате</b>\n"
-        f"(Считаются только текстовые сообщения!):\n\n"
-        f"💬 Написано всего смс: <code>{stats['total_messages']}</code>\n"
-        f"⭐ Накоплено звёзд: <code>{stats['total_stars']:.2f}</code>\n\n"
-        f"⛔ <b>Звёзды можно вывести минимум от 50! После подачи заявки на вывод, "
-        f"он обрабатывается до 24 часов (обычно 0-3 часа, уведомление о выводе звёзд "
-        f"придёт вам в личку с ботом)</b>"
-    )
-    
-    # Создаём кнопку
-    kb = InlineKeyboardMarkup()
-    kb.add(InlineKeyboardButton("💸 Вывести звёзды", callback_data=f"withdraw_stars_{user_id}"))
-    
-    bot.reply_to(message, text, parse_mode="HTML", reply_markup=kb)
-
-# ================== ОБРАБОТЧИК КНОПКИ ВЫВОДА ==================
-@bot.callback_query_handler(func=lambda c: c.data.startswith("withdraw_stars_"))
-def withdraw_stars_callback(call):
-    """Обрабатывает нажатие на кнопку вывода звёзд"""
-    try:
-        owner_id = int(call.data.split("_")[2])
-        
-        # ЗАЩИТА: проверяем, что нажимает владелец кнопки
-        if call.from_user.id != owner_id:
-            bot.answer_callback_query(call.id, "❌ Это не твоя кнопка!", show_alert=True)
-            return
-        
-        user_id = call.from_user.id
-        
-        # Проверяем, включён ли ивент
-        if not STAR_ENABLED:
-            bot.answer_callback_query(
-                call.id,
-                "⛔ Заработок звёзд временно отключён!",
-                show_alert=True
-            )
-            return
-        
-        # Получаем статистику пользователя
-        stats = get_user_star_stats(user_id)
-        
-        # Проверяем минимальную сумму
-        if stats['total_stars'] < MIN_WITHDRAWAL:
-            bot.answer_callback_query(
-                call.id,
-                f"❌ К сожалению у вас меньше {MIN_WITHDRAWAL} звёзд, вывод только от {MIN_WITHDRAWAL} ⭐.",
-                show_alert=True
-            )
-            return
-        
-        # Списываем звёзды
-        amount_to_withdraw = stats['total_stars']  # Выводим все звёзды
-        if not deduct_stars(user_id, amount_to_withdraw):
-            bot.answer_callback_query(call.id, "❌ Ошибка при списании звёзд!", show_alert=True)
-            return
-        
-        # Создаём заявку на вывод
-        username = f"@{call.from_user.username}" if call.from_user.username else "Нет username"
-        request_id = create_withdrawal_request(user_id, username, amount_to_withdraw)
-        
-        # Уведомляем пользователя
-        mention = f'<a href="tg://user?id={user_id}">{call.from_user.first_name}</a>'
-        bot.edit_message_text(
-            f"{mention}, <b>вы успешно поставили свои звёзды на вывод, "
-            f"заказ обрабатывается обычно в течение 0-3 часов (может до 24 часов!)</b>",
-            call.message.chat.id,
-            call.message.message_id,
-            parse_mode="HTML"
-        )
-        
-        # Отправляем уведомление админу
-        admin_text = (
-            f"📤 <b>НОВАЯ ЗАЯВКА НА ВЫВОД ЗВЁЗД</b>\n\n"
-            f"👤 Пользователь: {mention}\n"
-            f"🆔 ID: <code>{user_id}</code>\n"
-            f"📱 Username: {username}\n"
-            f"⭐ Количество: <code>{amount_to_withdraw:.2f}</code>\n"
-            f"🆔 Заявка #{request_id}\n\n"
-            f"Выберите действие:"
-        )
-        
-        admin_kb = InlineKeyboardMarkup(row_width=2)
-        admin_kb.add(
-            InlineKeyboardButton("✅ Успешно", callback_data=f"approve_withdraw_{request_id}"),
-            InlineKeyboardButton("❌ Отмена", callback_data=f"reject_withdraw_{request_id}")
-        )
-        
-        bot.send_message(ADMIN_ID_FOR_STARS, admin_text, parse_mode="HTML", reply_markup=admin_kb)
-        
-        bot.answer_callback_query(call.id, "✅ Заявка отправлена!")
-        
-    except Exception as e:
-        logger.error(f"Ошибка в обработчике вывода звёзд: {e}")
-        bot.answer_callback_query(call.id, "❌ Ошибка!", show_alert=True)
-
-# ================== ОБРАБОТЧИКИ ДЛЯ АДМИНА (ПОДТВЕРЖДЕНИЕ ВЫВОДА) ==================
-@bot.callback_query_handler(func=lambda c: c.data.startswith("approve_withdraw_"))
-def approve_withdrawal(call):
-    """Админ подтверждает вывод звёзд"""
-    try:
-        # Проверяем, что это админ
-        if call.from_user.id != ADMIN_ID_FOR_STARS:
-            bot.answer_callback_query(call.id, "❌ Это не твоя кнопка!", show_alert=True)
-            return
-        
-        request_id = int(call.data.split("_")[2])
-        
-        # Получаем информацию о заявке
-        conn = sqlite3.connect(STAR_DB)
-        c = conn.cursor()
-        c.execute("SELECT user_id, username, amount FROM withdrawal_requests WHERE id = ? AND status = 'pending'", 
-                 (request_id,))
-        request = c.fetchone()
-        conn.close()
-        
-        if not request:
-            bot.answer_callback_query(call.id, "❌ Заявка не найдена или уже обработана!", show_alert=True)
-            return
-        
-        user_id, username, amount = request
-        
-        # Обновляем статус заявки
-        update_withdrawal_status(request_id, 'approved')
-        
-        # Уведомляем пользователя
-        try:
-            user = bot.get_chat(user_id)
-            user_mention = f'<a href="tg://user?id={user_id}">{user.first_name}</a>'
-            
-            # Определяем username для отправки
-            send_username = f"@{user.username}" if user.username else "отсутствует"
-            
-            bot.send_message(
-                user_id,
-                f"⭐ <b>Ваш заказ обработан, звёзды отправлены на ваш username {send_username}.</b>",
-                parse_mode="HTML"
-            )
-        except Exception as e:
-            logger.error(f"Не удалось уведомить пользователя {user_id}: {e}")
-        
-        # Обновляем сообщение админа
-        bot.edit_message_text(
-            f"✅ Заявка #{request_id} одобрена!\n\n"
-            f"Пользователь уведомлён.",
-            call.message.chat.id,
-            call.message.message_id,
-            parse_mode="HTML"
-        )
-        
-        bot.answer_callback_query(call.id, "✅ Одобрено!")
-        
-    except Exception as e:
-        logger.error(f"Ошибка при одобрении вывода: {e}")
-        bot.answer_callback_query(call.id, "❌ Ошибка!", show_alert=True)
-
-@bot.callback_query_handler(func=lambda c: c.data.startswith("reject_withdraw_"))
-def reject_withdrawal(call):
-    """Админ отклоняет вывод звёзд"""
-    try:
-        # Проверяем, что это админ
-        if call.from_user.id != ADMIN_ID_FOR_STARS:
-            bot.answer_callback_query(call.id, "❌ Это не твоя кнопка!", show_alert=True)
-            return
-        
-        request_id = int(call.data.split("_")[2])
-        
-        # Получаем информацию о заявке
-        conn = sqlite3.connect(STAR_DB)
-        c = conn.cursor()
-        c.execute("SELECT user_id, username, amount FROM withdrawal_requests WHERE id = ? AND status = 'pending'", 
-                 (request_id,))
-        request = c.fetchone()
-        conn.close()
-        
-        if not request:
-            bot.answer_callback_query(call.id, "❌ Заявка не найдена или уже обработана!", show_alert=True)
-            return
-        
-        user_id, username, amount = request
-        
-        # Возвращаем звёзды пользователю
-        conn = sqlite3.connect(STAR_DB)
-        c = conn.cursor()
-        c.execute("UPDATE star_users SET total_stars = total_stars + ? WHERE user_id = ?", (amount, user_id))
-        conn.commit()
-        conn.close()
-        
-        # Обновляем статус заявки
-        update_withdrawal_status(request_id, 'rejected')
-        
-        # Уведомляем пользователя
-        try:
-            bot.send_message(
-                user_id,
-                f"⛔ <b>Ваш заказ был отклонен, причинами могут быть:</b>\n"
-                f"1. У вас нет username\n"
-                f"2. Заказ был отклонен по другой причине - пишите в лс @parvizwp.",
-                parse_mode="HTML"
-            )
-        except Exception as e:
-            logger.error(f"Не удалось уведомить пользователя {user_id}: {e}")
-        
-        # Обновляем сообщение админа
-        bot.edit_message_text(
-            f"❌ Заявка #{request_id} отклонена!\n\n"
-            f"Пользователь уведомлён.",
-            call.message.chat.id,
-            call.message.message_id,
-            parse_mode="HTML"
-        )
-        
-        bot.answer_callback_query(call.id, "❌ Отклонено")
-        
-    except Exception as e:
-        logger.error(f"Ошибка при отклонении вывода: {e}")
-        bot.answer_callback_query(call.id, "❌ Ошибка!", show_alert=True)
-
-# ================== АДМИН КОМАНДА: ЗАКИНУТЬ ==================
-@bot.message_handler(func=lambda m: m.text and m.text.lower().startswith("закинуть"))
-def admin_add_stars(message):
-    """Админ начисляет звёзды пользователю (ответом на сообщение)"""
-    user_id = message.from_user.id
-    
-    # Проверяем, что это админ
-    if user_id != ADMIN_ID_FOR_STARS:
-        # Игнорируем обычных пользователей
-        return
-    
-    # Проверяем, что команда отправлена в ответ на сообщение
-    if not message.reply_to_message:
-        bot.reply_to(message, "❌ Ответьте на сообщение пользователя, которому хотите начислить звёзды!")
-        return
-    
-    target_user = message.reply_to_message.from_user
-    target_id = target_user.id
-    
-    # Парсим количество звёзд
-    try:
-        parts = message.text.split()
-        if len(parts) < 2:
-            bot.reply_to(message, "❌ Использование: закинуть [количество] (ответом на сообщение)")
-            return
-        
-        amount = float(parts[1])
-        if amount <= 0:
-            bot.reply_to(message, "❌ Количество должно быть больше 0!")
-            return
-        
-        if amount > 1000:
-            bot.reply_to(message, "❌ Максимальная сумма за раз: 1000 звёзд!")
-            return
-        
-    except ValueError:
-        bot.reply_to(message, "❌ Неверный формат! Укажите число (можно с точкой, например: 5.5)")
-        return
-    
-    # Начисляем звёзды
-    conn = sqlite3.connect(STAR_DB)
-    c = conn.cursor()
-    
-    c.execute("SELECT total_messages, total_stars FROM star_users WHERE user_id = ?", (target_id,))
-    result = c.fetchone()
-    
-    if result:
-        total_stars = result[1] + amount
-        c.execute("UPDATE star_users SET total_stars = ? WHERE user_id = ?", (total_stars, target_id))
-    else:
-        c.execute("INSERT INTO star_users (user_id, total_messages, total_stars) VALUES (?, ?, ?)",
-                 (target_id, 0, amount))
-    
-    conn.commit()
-    conn.close()
-    
-    # Отправляем подтверждение
-    admin_mention = f'<a href="tg://user?id={user_id}">{message.from_user.first_name}</a>'
-    target_mention = f'<a href="tg://user?id={target_id}">{target_user.first_name}</a>'
-    
-    bot.reply_to(
-        message,
-        f"✅ {admin_mention} начислил {target_mention}\n"
-        f"⭐ <b>{amount}</b> звёзд!",
-        parse_mode="HTML"
-    )
-    
-    # Уведомляем пользователя
-    try:
-        bot.send_message(
-            target_id,
-            f"🎁 Вам начислено <b>{amount} ⭐</b>!\n"
-            f"Проверить баланс: <code>мои звёзды</code>",
-            parse_mode="HTML"
-        )
-    except:
-        pass
-    
-    logger.info(f"Админ {user_id} начислил {amount} звёзд пользователю {target_id}")
-
-# ================== АДМИН КОМАНДА: /off ==================
-@bot.message_handler(commands=['off'])
-def turn_off_stars(message):
-    """Отключает ивент со звёздами"""
-    global STAR_ENABLED
-    
-    user_id = message.from_user.id
-    
-    # Проверяем, что это админ
-    if user_id != ADMIN_ID_FOR_STARS:
-        # Игнорируем обычных пользователей
-        return
-    
-    STAR_ENABLED = False
-    bot.reply_to(
-        message,
-        f"✅ <b>Ивент со звёздами ОТКЛЮЧЁН!</b>\n"
-        f"Теперь команда <code>мои звёзды</code> будет показывать сообщение об отключении.",
-        parse_mode="HTML"
-    )
-    logger.info(f"Админ {user_id} отключил ивент со звёздами")
-
-# ================== АДМИН КОМАНДА: /on ==================
-@bot.message_handler(commands=['on'])
-def turn_on_stars(message):
-    """Включает ивент со звёздами"""
-    global STAR_ENABLED
-    
-    user_id = message.from_user.id
-    
-    # Проверяем, что это админ
-    if user_id != ADMIN_ID_FOR_STARS:
-        # Игнорируем обычных пользователей
-        return
-    
-    STAR_ENABLED = True
-    bot.reply_to(
-        message,
-        f"✅ <b>Ивент со звёздами ВКЛЮЧЁН!</b>\n"
-        f"Теперь сообщения снова начисляют звёзды.",
-        parse_mode="HTML"
-    )
-    logger.info(f"Админ {user_id} включил ивент со звёздами")
-
-# ================== АДМИН КОМАНДА: СТАТИСТИКА ЗВЁЗД ==================
-@bot.message_handler(func=lambda m: m.text and m.text.lower() == "статистика звёзд")
-def star_stats_admin(message):
-    """Показывает статистику по звёздам (только для админа)"""
-    user_id = message.from_user.id
-    
-    if user_id != ADMIN_ID_FOR_STARS:
-        return
-    
-    conn = sqlite3.connect(STAR_DB)
-    c = conn.cursor()
-    
-    # Общая статистика
-    c.execute("SELECT COUNT(*), SUM(total_messages), SUM(total_stars) FROM star_users")
-    total_users, total_msgs, total_stars = c.fetchone()
-    
-    # Количество ожидающих заявок
-    c.execute("SELECT COUNT(*) FROM withdrawal_requests WHERE status = 'pending'")
-    pending_requests = c.fetchone()[0]
-    
-    # Топ-5 пользователей по звёздам
-    c.execute("SELECT user_id, total_stars FROM star_users ORDER BY total_stars DESC LIMIT 5")
-    top_users = c.fetchall()
-    
-    conn.close()
-    
-    text = (
-        f"📊 <b>СТАТИСТИКА ЗВЁЗД</b>\n\n"
-        f"👥 Всего участников: <code>{total_users or 0}</code>\n"
-        f"💬 Всего сообщений: <code>{total_msgs or 0}</code>\n"
-        f"⭐ Всего начислено звёзд: <code>{total_stars or 0:.2f}</code>\n"
-        f"⏳ Ожидающих заявок: <code>{pending_requests}</code>\n\n"
-        f"🏆 <b>Топ-5 по звёздам:</b>\n"
-    )
-    
-    for i, (uid, stars) in enumerate(top_users, 1):
-        try:
-            user = bot.get_chat(uid)
-            name = user.first_name
-        except:
-            name = f"User {uid}"
-        
-        text += f"{i}. <a href='tg://user?id={uid}'>{name}</a> — {stars:.2f}⭐\n"
-    
-    bot.send_message(message.chat.id, text, parse_mode="HTML")
         
 # ================== РЕФЕРАЛЬНАЯ СИСТЕМА (SQLite) ==================
 REFERRAL_BONUS = 15000
@@ -21000,7 +20423,586 @@ def handle_log_id_input(message):
             except:
                 pass
         
+# ================== 🌟 СИСТЕМА ЗВЁЗД ЗА СООБЩЕНИЯ ==================
+STAR_DB = "star_messages.db"
+STAR_ENABLED = True  # Глобальный флаг включения/выключения ивента
+STAR_CHAT_ID = -5102967272  # ID чата для подсчёта сообщений
+STARS_PER_MESSAGE = 0.005  # 0.01 звезды за 2 сообщения = 0.005 за 1 сообщение
+MIN_WITHDRAWAL = 50  # Минимальная сумма для вывода
+ADMIN_ID_FOR_STARS = 7526512670  # ID админа для уведомлений о выводах
 
+# Инициализация базы данных
+def init_star_db():
+    conn = sqlite3.connect(STAR_DB)
+    c = conn.cursor()
+    
+    # Таблица пользователей
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS star_users (
+            user_id INTEGER PRIMARY KEY,
+            total_messages INTEGER DEFAULT 0,
+            total_stars REAL DEFAULT 0
+        )
+    """)
+    
+    # Таблица заявок на вывод
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS withdrawal_requests (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            username TEXT,
+            amount REAL NOT NULL,
+            status TEXT DEFAULT 'pending',
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    
+    conn.commit()
+    conn.close()
+    logger.info("✅ База данных для звёзд инициализирована")
+
+init_star_db()
+
+# Функции для работы со звёздами
+def get_user_star_stats(user_id):
+    """Получает статистику пользователя по звёздам"""
+    conn = sqlite3.connect(STAR_DB)
+    c = conn.cursor()
+    
+    c.execute("SELECT total_messages, total_stars FROM star_users WHERE user_id = ?", (user_id,))
+    result = c.fetchone()
+    conn.close()
+    
+    if result:
+        return {
+            "total_messages": result[0],
+            "total_stars": result[1]
+        }
+    return {
+        "total_messages": 0,
+        "total_stars": 0
+    }
+
+def update_user_star_stats(user_id, messages_add=1):
+    """Обновляет статистику пользователя (добавляет сообщение и звёзды)"""
+    conn = sqlite3.connect(STAR_DB)
+    c = conn.cursor()
+    
+    # Получаем текущие значения
+    c.execute("SELECT total_messages, total_stars FROM star_users WHERE user_id = ?", (user_id,))
+    result = c.fetchone()
+    
+    if result:
+        total_messages = result[0] + messages_add
+        total_stars = result[1] + (messages_add * STARS_PER_MESSAGE)
+        c.execute("UPDATE star_users SET total_messages = ?, total_stars = ? WHERE user_id = ?",
+                 (total_messages, total_stars, user_id))
+    else:
+        total_messages = messages_add
+        total_stars = messages_add * STARS_PER_MESSAGE
+        c.execute("INSERT INTO star_users (user_id, total_messages, total_stars) VALUES (?, ?, ?)",
+                 (user_id, total_messages, total_stars))
+    
+    conn.commit()
+    conn.close()
+    return total_messages, total_stars
+
+def deduct_stars(user_id, amount):
+    """Списывает звёзды с баланса пользователя"""
+    conn = sqlite3.connect(STAR_DB)
+    c = conn.cursor()
+    
+    c.execute("SELECT total_stars FROM star_users WHERE user_id = ?", (user_id,))
+    result = c.fetchone()
+    
+    if not result or result[0] < amount:
+        conn.close()
+        return False
+    
+    new_balance = result[0] - amount
+    c.execute("UPDATE star_users SET total_stars = ? WHERE user_id = ?", (new_balance, user_id))
+    conn.commit()
+    conn.close()
+    return True
+
+def create_withdrawal_request(user_id, username, amount):
+    """Создаёт заявку на вывод звёзд"""
+    conn = sqlite3.connect(STAR_DB)
+    c = conn.cursor()
+    
+    c.execute("""
+        INSERT INTO withdrawal_requests (user_id, username, amount, status)
+        VALUES (?, ?, ?, 'pending')
+    """, (user_id, username, amount))
+    
+    request_id = c.lastrowid
+    conn.commit()
+    conn.close()
+    return request_id
+
+def get_pending_withdrawal_requests():
+    """Получает все ожидающие заявки на вывод"""
+    conn = sqlite3.connect(STAR_DB)
+    c = conn.cursor()
+    
+    c.execute("""
+        SELECT id, user_id, username, amount, created_at
+        FROM withdrawal_requests
+        WHERE status = 'pending'
+        ORDER BY created_at DESC
+    """)
+    
+    requests = c.fetchall()
+    conn.close()
+    return requests
+
+def update_withdrawal_status(request_id, status):
+    """Обновляет статус заявки на вывод"""
+    conn = sqlite3.connect(STAR_DB)
+    c = conn.cursor()
+    
+    c.execute("UPDATE withdrawal_requests SET status = ? WHERE id = ?", (status, request_id))
+    conn.commit()
+    conn.close()
+
+# ================== ГЛОБАЛЬНЫЙ ОБРАБОТЧИК ДЛЯ ПОДСЧЁТА СООБЩЕНИЙ ==================
+# ВАЖНО: Этот обработчик имеет самый низкий приоритет и НЕ БЛОКИРУЕТ другие команды
+@bot.message_handler(func=lambda message: True, content_types=['text'])
+def count_messages_handler(message):
+    """
+    Глобальный обработчик для подсчёта текстовых сообщений.
+    Работает ТОЛЬКО в указанном чате и считает ЛЮБЫЕ текстовые сообщения,
+    включая команды, но НЕ МЕШАЕТ их работе.
+    """
+    try:
+        # Проверяем, что сообщение из нужного чата
+        if message.chat.id != STAR_CHAT_ID:
+            return  # Не наш чат - игнорируем
+        
+        # Получаем ID пользователя
+        user_id = message.from_user.id
+        
+        # Пропускаем сообщения от ботов
+        if message.from_user.is_bot:
+            return
+        
+        # Обновляем статистику пользователя (добавляем 1 сообщение)
+        total_msgs, total_stars = update_user_star_stats(user_id)
+        
+        # Логируем для отладки (можно закомментировать)
+        logger.info(f"⭐ Подсчёт сообщений: {user_id} | Всего: {total_msgs} | Звёзд: {total_stars:.3f}")
+        
+    except Exception as e:
+        logger.error(f"Ошибка в подсчёте сообщений: {e}")
+
+# ================== КОМАНДА: МОИ ЗВЁЗДЫ ==================
+@bot.message_handler(func=lambda m: m.text and m.text.lower() in ["мои звёзды", "звёзды", "мои звезды"])
+def my_stars_command(message):
+    """Показывает статистику звёзд пользователя"""
+    user_id = message.from_user.id
+    user_name = message.from_user.first_name
+    mention = f'<a href="tg://user?id={user_id}">{user_name}</a>'
+    
+    # Проверяем, включён ли ивент
+    if not STAR_ENABLED:
+        bot.reply_to(
+            message,
+            f"⛔ <b>Заработок звёзд уже был выключен, скоро будет снова включён</b>",
+            parse_mode="HTML"
+        )
+        return
+    
+    # Получаем статистику пользователя
+    stats = get_user_star_stats(user_id)
+    
+    # Формируем текст
+    text = (
+        f"📄 <b>Статистика твоих смс в нашем чате</b>\n"
+        f"(Считаются только текстовые сообщения!):\n\n"
+        f"💬 Написано всего смс: <code>{stats['total_messages']}</code>\n"
+        f"⭐ Накоплено звёзд: <code>{stats['total_stars']:.2f}</code>\n\n"
+        f"⛔ <b>Звёзды можно вывести минимум от 50! После подачи заявки на вывод, "
+        f"он обрабатывается до 24 часов (обычно 0-3 часа, уведомление о выводе звёзд "
+        f"придёт вам в личку с ботом)</b>"
+    )
+    
+    # Создаём кнопку
+    kb = InlineKeyboardMarkup()
+    kb.add(InlineKeyboardButton("💸 Вывести звёзды", callback_data=f"withdraw_stars_{user_id}"))
+    
+    bot.reply_to(message, text, parse_mode="HTML", reply_markup=kb)
+
+# ================== ОБРАБОТЧИК КНОПКИ ВЫВОДА ==================
+@bot.callback_query_handler(func=lambda c: c.data.startswith("withdraw_stars_"))
+def withdraw_stars_callback(call):
+    """Обрабатывает нажатие на кнопку вывода звёзд"""
+    try:
+        owner_id = int(call.data.split("_")[2])
+        
+        # ЗАЩИТА: проверяем, что нажимает владелец кнопки
+        if call.from_user.id != owner_id:
+            bot.answer_callback_query(call.id, "❌ Это не твоя кнопка!", show_alert=True)
+            return
+        
+        user_id = call.from_user.id
+        
+        # Проверяем, включён ли ивент
+        if not STAR_ENABLED:
+            bot.answer_callback_query(
+                call.id,
+                "⛔ Заработок звёзд временно отключён!",
+                show_alert=True
+            )
+            return
+        
+        # Получаем статистику пользователя
+        stats = get_user_star_stats(user_id)
+        
+        # Проверяем минимальную сумму
+        if stats['total_stars'] < MIN_WITHDRAWAL:
+            bot.answer_callback_query(
+                call.id,
+                f"❌ К сожалению у вас меньше {MIN_WITHDRAWAL} звёзд, вывод только от {MIN_WITHDRAWAL} ⭐.",
+                show_alert=True
+            )
+            return
+        
+        # Списываем звёзды
+        amount_to_withdraw = stats['total_stars']  # Выводим все звёзды
+        if not deduct_stars(user_id, amount_to_withdraw):
+            bot.answer_callback_query(call.id, "❌ Ошибка при списании звёзд!", show_alert=True)
+            return
+        
+        # Создаём заявку на вывод
+        username = f"@{call.from_user.username}" if call.from_user.username else "Нет username"
+        request_id = create_withdrawal_request(user_id, username, amount_to_withdraw)
+        
+        # Уведомляем пользователя
+        mention = f'<a href="tg://user?id={user_id}">{call.from_user.first_name}</a>'
+        bot.edit_message_text(
+            f"{mention}, <b>вы успешно поставили свои звёзды на вывод, "
+            f"заказ обрабатывается обычно в течение 0-3 часов (может до 24 часов!)</b>",
+            call.message.chat.id,
+            call.message.message_id,
+            parse_mode="HTML"
+        )
+        
+        # Отправляем уведомление админу
+        admin_text = (
+            f"📤 <b>НОВАЯ ЗАЯВКА НА ВЫВОД ЗВЁЗД</b>\n\n"
+            f"👤 Пользователь: {mention}\n"
+            f"🆔 ID: <code>{user_id}</code>\n"
+            f"📱 Username: {username}\n"
+            f"⭐ Количество: <code>{amount_to_withdraw:.2f}</code>\n"
+            f"🆔 Заявка #{request_id}\n\n"
+            f"Выберите действие:"
+        )
+        
+        admin_kb = InlineKeyboardMarkup(row_width=2)
+        admin_kb.add(
+            InlineKeyboardButton("✅ Успешно", callback_data=f"approve_withdraw_{request_id}"),
+            InlineKeyboardButton("❌ Отмена", callback_data=f"reject_withdraw_{request_id}")
+        )
+        
+        bot.send_message(ADMIN_ID_FOR_STARS, admin_text, parse_mode="HTML", reply_markup=admin_kb)
+        
+        bot.answer_callback_query(call.id, "✅ Заявка отправлена!")
+        
+    except Exception as e:
+        logger.error(f"Ошибка в обработчике вывода звёзд: {e}")
+        bot.answer_callback_query(call.id, "❌ Ошибка!", show_alert=True)
+        
+        # ================== ОБРАБОТЧИКИ ДЛЯ АДМИНА (ПОДТВЕРЖДЕНИЕ ВЫВОДА) ==================
+@bot.callback_query_handler(func=lambda c: c.data.startswith("approve_withdraw_"))
+def approve_withdrawal(call):
+    """Админ подтверждает вывод звёзд"""
+    try:
+        # Проверяем, что это админ
+        if call.from_user.id != ADMIN_ID_FOR_STARS:
+            bot.answer_callback_query(call.id, "❌ Это не твоя кнопка!", show_alert=True)
+            return
+        
+        request_id = int(call.data.split("_")[2])
+        
+        # Получаем информацию о заявке
+        conn = sqlite3.connect(STAR_DB)
+        c = conn.cursor()
+        c.execute("SELECT user_id, username, amount FROM withdrawal_requests WHERE id = ? AND status = 'pending'", 
+                 (request_id,))
+        request = c.fetchone()
+        conn.close()
+        
+        if not request:
+            bot.answer_callback_query(call.id, "❌ Заявка не найдена или уже обработана!", show_alert=True)
+            return
+        
+        user_id, username, amount = request
+        
+        # Обновляем статус заявки
+        update_withdrawal_status(request_id, 'approved')
+        
+        # Уведомляем пользователя
+        try:
+            user = bot.get_chat(user_id)
+            user_mention = f'<a href="tg://user?id={user_id}">{user.first_name}</a>'
+            
+            # Определяем username для отправки
+            send_username = f"@{user.username}" if user.username else "отсутствует"
+            
+            bot.send_message(
+                user_id,
+                f"⭐ <b>Ваш заказ обработан, звёзды отправлены на ваш username {send_username}.</b>",
+                parse_mode="HTML"
+            )
+        except Exception as e:
+            logger.error(f"Не удалось уведомить пользователя {user_id}: {e}")
+        
+        # Обновляем сообщение админа
+        bot.edit_message_text(
+            f"✅ Заявка #{request_id} одобрена!\n\n"
+            f"Пользователь уведомлён.",
+            call.message.chat.id,
+            call.message.message_id,
+            parse_mode="HTML"
+        )
+        
+        bot.answer_callback_query(call.id, "✅ Одобрено!")
+        
+    except Exception as e:
+        logger.error(f"Ошибка при одобрении вывода: {e}")
+        bot.answer_callback_query(call.id, "❌ Ошибка!", show_alert=True)
+
+@bot.callback_query_handler(func=lambda c: c.data.startswith("reject_withdraw_"))
+def reject_withdrawal(call):
+    """Админ отклоняет вывод звёзд"""
+    try:
+        # Проверяем, что это админ
+        if call.from_user.id != ADMIN_ID_FOR_STARS:
+            bot.answer_callback_query(call.id, "❌ Это не твоя кнопка!", show_alert=True)
+            return
+        
+        request_id = int(call.data.split("_")[2])
+        
+        # Получаем информацию о заявке
+        conn = sqlite3.connect(STAR_DB)
+        c = conn.cursor()
+        c.execute("SELECT user_id, username, amount FROM withdrawal_requests WHERE id = ? AND status = 'pending'", 
+                 (request_id,))
+        request = c.fetchone()
+        conn.close()
+        
+        if not request:
+            bot.answer_callback_query(call.id, "❌ Заявка не найдена или уже обработана!", show_alert=True)
+            return
+        
+        user_id, username, amount = request
+        
+        # Возвращаем звёзды пользователю
+        conn = sqlite3.connect(STAR_DB)
+        c = conn.cursor()
+        c.execute("UPDATE star_users SET total_stars = total_stars + ? WHERE user_id = ?", (amount, user_id))
+        conn.commit()
+        conn.close()
+        
+        # Обновляем статус заявки
+        update_withdrawal_status(request_id, 'rejected')
+        
+        # Уведомляем пользователя
+        try:
+            bot.send_message(
+                user_id,
+                f"⛔ <b>Ваш заказ был отклонен, причинами могут быть:</b>\n"
+                f"1. У вас нет username\n"
+                f"2. Заказ был отклонен по другой причине - пишите в лс @parvizwp.",
+                parse_mode="HTML"
+            )
+        except Exception as e:
+            logger.error(f"Не удалось уведомить пользователя {user_id}: {e}")
+        
+        # Обновляем сообщение админа
+        bot.edit_message_text(
+            f"❌ Заявка #{request_id} отклонена!\n\n"
+            f"Пользователь уведомлён.",
+            call.message.chat.id,
+            call.message.message_id,
+            parse_mode="HTML"
+        )
+        
+        bot.answer_callback_query(call.id, "❌ Отклонено")
+        
+    except Exception as e:
+        logger.error(f"Ошибка при отклонении вывода: {e}")
+        bot.answer_callback_query(call.id, "❌ Ошибка!", show_alert=True)
+
+# ================== АДМИН КОМАНДА: ЗАКИНУТЬ ==================
+@bot.message_handler(func=lambda m: m.text and m.text.lower().startswith("закинуть"))
+def admin_add_stars(message):
+    """Админ начисляет звёзды пользователю (ответом на сообщение)"""
+    user_id = message.from_user.id
+    
+    # Проверяем, что это админ
+    if user_id != ADMIN_ID_FOR_STARS:
+        # Игнорируем обычных пользователей
+        return
+    
+    # Проверяем, что команда отправлена в ответ на сообщение
+    if not message.reply_to_message:
+        bot.reply_to(message, "❌ Ответьте на сообщение пользователя, которому хотите начислить звёзды!")
+        return
+    
+    target_user = message.reply_to_message.from_user
+    target_id = target_user.id
+    
+    # Парсим количество звёзд
+    try:
+        parts = message.text.split()
+        if len(parts) < 2:
+            bot.reply_to(message, "❌ Использование: закинуть [количество] (ответом на сообщение)")
+            return
+        
+        amount = float(parts[1])
+        if amount <= 0:
+            bot.reply_to(message, "❌ Количество должно быть больше 0!")
+            return
+        
+        if amount > 1000:
+            bot.reply_to(message, "❌ Максимальная сумма за раз: 1000 звёзд!")
+            return
+        
+    except ValueError:
+        bot.reply_to(message, "❌ Неверный формат! Укажите число (можно с точкой, например: 5.5)")
+        return
+    
+    # Начисляем звёзды
+    conn = sqlite3.connect(STAR_DB)
+    c = conn.cursor()
+    
+    c.execute("SELECT total_messages, total_stars FROM star_users WHERE user_id = ?", (target_id,))
+    result = c.fetchone()
+    
+    if result:
+        total_stars = result[1] + amount
+        c.execute("UPDATE star_users SET total_stars = ? WHERE user_id = ?", (total_stars, target_id))
+    else:
+        c.execute("INSERT INTO star_users (user_id, total_messages, total_stars) VALUES (?, ?, ?)",
+                 (target_id, 0, amount))
+    
+    conn.commit()
+    conn.close()
+    
+    # Отправляем подтверждение
+    admin_mention = f'<a href="tg://user?id={user_id}">{message.from_user.first_name}</a>'
+    target_mention = f'<a href="tg://user?id={target_id}">{target_user.first_name}</a>'
+    
+    bot.reply_to(
+        message,
+        f"✅ {admin_mention} начислил {target_mention}\n"
+        f"⭐ <b>{amount}</b> звёзд!",
+        parse_mode="HTML"
+    )
+    
+    # Уведомляем пользователя
+    try:
+        bot.send_message(
+            target_id,
+            f"🎁 Вам начислено <b>{amount} ⭐</b>!\n"
+            f"Проверить баланс: <code>мои звёзды</code>",
+            parse_mode="HTML"
+        )
+    except:
+        pass
+    
+    logger.info(f"Админ {user_id} начислил {amount} звёзд пользователю {target_id}")
+
+# ================== АДМИН КОМАНДА: /off ==================
+@bot.message_handler(commands=['off'])
+def turn_off_stars(message):
+    """Отключает ивент со звёздами"""
+    global STAR_ENABLED
+    
+    user_id = message.from_user.id
+    
+    # Проверяем, что это админ
+    if user_id != ADMIN_ID_FOR_STARS:
+        # Игнорируем обычных пользователей
+        return
+    
+    STAR_ENABLED = False
+    bot.reply_to(
+        message,
+        f"✅ <b>Ивент со звёздами ОТКЛЮЧЁН!</b>\n"
+        f"Теперь команда <code>мои звёзды</code> будет показывать сообщение об отключении.",
+        parse_mode="HTML"
+    )
+    logger.info(f"Админ {user_id} отключил ивент со звёздами")
+
+# ================== АДМИН КОМАНДА: /on ==================
+@bot.message_handler(commands=['on'])
+def turn_on_stars(message):
+    """Включает ивент со звёздами"""
+    global STAR_ENABLED
+    
+    user_id = message.from_user.id
+    
+    # Проверяем, что это админ
+    if user_id != ADMIN_ID_FOR_STARS:
+        # Игнорируем обычных пользователей
+        return
+    
+    STAR_ENABLED = True
+    bot.reply_to(
+        message,
+        f"✅ <b>Ивент со звёздами ВКЛЮЧЁН!</b>\n"
+        f"Теперь сообщения снова начисляют звёзды.",
+        parse_mode="HTML"
+    )
+    logger.info(f"Админ {user_id} включил ивент со звёздами")
+
+# ================== АДМИН КОМАНДА: СТАТИСТИКА ЗВЁЗД ==================
+@bot.message_handler(func=lambda m: m.text and m.text.lower() == "статистика звёзд")
+def star_stats_admin(message):
+    """Показывает статистику по звёздам (только для админа)"""
+    user_id = message.from_user.id
+    
+    if user_id != ADMIN_ID_FOR_STARS:
+        return
+    
+    conn = sqlite3.connect(STAR_DB)
+    c = conn.cursor()
+    
+    # Общая статистика
+    c.execute("SELECT COUNT(*), SUM(total_messages), SUM(total_stars) FROM star_users")
+    total_users, total_msgs, total_stars = c.fetchone()
+    
+    # Количество ожидающих заявок
+    c.execute("SELECT COUNT(*) FROM withdrawal_requests WHERE status = 'pending'")
+    pending_requests = c.fetchone()[0]
+    
+    # Топ-5 пользователей по звёздам
+    c.execute("SELECT user_id, total_stars FROM star_users ORDER BY total_stars DESC LIMIT 5")
+    top_users = c.fetchall()
+    
+    conn.close()
+    
+    text = (
+        f"📊 <b>СТАТИСТИКА ЗВЁЗД</b>\n\n"
+        f"👥 Всего участников: <code>{total_users or 0}</code>\n"
+        f"💬 Всего сообщений: <code>{total_msgs or 0}</code>\n"
+        f"⭐ Всего начислено звёзд: <code>{total_stars or 0:.2f}</code>\n"
+        f"⏳ Ожидающих заявок: <code>{pending_requests}</code>\n\n"
+        f"🏆 <b>Топ-5 по звёздам:</b>\n"
+    )
+    
+    for i, (uid, stars) in enumerate(top_users, 1):
+        try:
+            user = bot.get_chat(uid)
+            name = user.first_name
+        except:
+            name = f"User {uid}"
+        
+        text += f"{i}. <a href='tg://user?id={uid}'>{name}</a> — {stars:.2f}⭐\n"
+    
+    bot.send_message(message.chat.id, text, parse_mode="HTML")
 # ================== ЗАПУСК БОТА ==================
 if __name__ == "__main__":
     logger.info("Бот Iris запущен!")
