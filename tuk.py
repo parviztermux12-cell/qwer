@@ -1121,14 +1121,14 @@ def joker_keyboard(game_id, user_id, opened_cells, current_row, max_visible_row,
                     row_buttons.append(InlineKeyboardButton("⬛", callback_data="joker_done"))
                 else:
                     # Безопасная клетка
-                    row_buttons.append(InlineKeyboardButton("✅", callback_data="joker_done"))
+                    row_buttons.append(InlineKeyboardButton(" 🟢 ", callback_data="joker_done"))
             else:
                 if row == current_row and row <= max_visible_row:
                     # Текущий ряд, который можно открывать
-                    row_buttons.append(InlineKeyboardButton(f"🟢", callback_data=f"joker_open_{game_id}_{row}_{col}_{user_id}"))
+                    row_buttons.append(InlineKeyboardButton(f" ❓ ", callback_data=f"joker_open_{game_id}_{row}_{col}_{user_id}"))
                 else:
                     # Недоступные ряды
-                    row_buttons.append(InlineKeyboardButton("⬜", callback_data="joker_done"))
+                    row_buttons.append(InlineKeyboardButton("       ", callback_data="joker_done"))
         
         kb.row(*row_buttons)
     
@@ -1199,12 +1199,12 @@ def joker_open_cell(call):
                     elif c == skull_positions[r]:
                         row_buttons.append(InlineKeyboardButton("💀", callback_data="joker_done"))
                     elif (r, c) in game["opened_cells"]:
-                        row_buttons.append(InlineKeyboardButton("✅", callback_data="joker_done"))
+                        row_buttons.append(InlineKeyboardButton(" 🟢 ", callback_data="joker_done"))
                     else:
-                        row_buttons.append(InlineKeyboardButton("⬜", callback_data="joker_done"))
+                        row_buttons.append(InlineKeyboardButton("      ", callback_data="joker_done"))
                 result_kb.row(*row_buttons)
 
-            text = (f"💀 {mention}, <b>ТЫ НАТКНУЛСЯ НА ЧЕРЕП!</b>\n\n"
+            text = (f"💀 {mention}, <b>Ты наткнулся на череп и проиграл</b>\n\n"
                     f"💰 Ты потерял ставку: <code>{format_number(bet)}$</code>")
             
             bot.edit_message_text(
@@ -1255,12 +1255,12 @@ def joker_open_cell(call):
                 row_buttons = []
                 for c in range(JOKER_COLS):
                     if c == skull_positions[r]:
-                        row_buttons.append(InlineKeyboardButton("💀", callback_data="joker_done"))
+                        row_buttons.append(InlineKeyboardButton(" 💀 ", callback_data="joker_done"))
                     else:
-                        row_buttons.append(InlineKeyboardButton("✅", callback_data="joker_done"))
+                        row_buttons.append(InlineKeyboardButton("      ", callback_data="joker_done"))
                 result_kb.row(*row_buttons)
             
-            text = (f"🎉 {mention}, <b>ТЫ ПРОШЁЛ ВСЕ РЯДЫ!</b>\n\n"
+            text = (f"🎉 {mention}, <b>Ты прошёл все ряды и выиграл</b>\n\n"
                     f"💰 Выигрыш: <code>{format_number(win_amount)}$</code>\n"
                     f"📈 Итоговый множитель: <b>x{game['current_multiplier']:.2f}</b>")
             
@@ -1355,11 +1355,11 @@ def joker_cashout(call):
             row_buttons = []
             for c in range(JOKER_COLS):
                 if (r, c) in game["opened_cells"]:
-                    row_buttons.append(InlineKeyboardButton("✅", callback_data="joker_done"))
+                    row_buttons.append(InlineKeyboardButton("       ", callback_data="joker_done"))
                 elif c == skull_positions[r]:
-                    row_buttons.append(InlineKeyboardButton("💀", callback_data="joker_done"))
+                    row_buttons.append(InlineKeyboardButton(" 💀 ", callback_data="joker_done"))
                 else:
-                    row_buttons.append(InlineKeyboardButton("⬜", callback_data="joker_done"))
+                    row_buttons.append(InlineKeyboardButton(" 🟢 ", callback_data="joker_done"))
             result_kb.row(*row_buttons)
 
         text = (f"✅ {mention}, <b>ты забрал выигрыш!</b>\n\n"
