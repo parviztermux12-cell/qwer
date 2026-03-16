@@ -1058,16 +1058,11 @@ def joker_game_start(message):
         game_id = str(uuid.uuid4())[:8]
 
         # Создаём поле с черепами
-        # В первом ряду всегда один череп (для первой клетки)
+        # В первом ряду всегда один череп
         skull_positions = []
         
-        # Первый ряд: рандомно выбираем клетку с черепом (0, 1 или 2)
-        first_row_skull = random.randint(0, 2)
-        skull_positions.append(first_row_skull)
-        
-        # Для остальных рядов (если игрок продолжит)
-        for row in range(1, JOKER_ROWS):
-            # В каждом следующем ряду тоже один череп
+        # Для каждого ряда рандомно выбираем клетку с черепом (0, 1 или 2)
+        for row in range(JOKER_ROWS):
             skull_positions.append(random.randint(0, 2))
 
         # Сохраняем игру
@@ -1080,11 +1075,12 @@ def joker_game_start(message):
             "opened_cells": [],  # Список открытых клеток (row, col)
             "current_row": 0,  # Текущий ряд (0 - первый)
             "current_multiplier": 1.0,
-            "active": True
+            "active": True,
+            "max_visible_row": 0  # Максимальный видимый ряд (изначально только первый)
         }
 
         # Создаем клавиатуру для первого ряда
-        kb = joker_keyboard(game_id, user_id, [], 0, skull_positions)
+        kb = joker_keyboard(game_id, user_id, [], 0, 0, skull_positions)
 
         # Отправляем сообщение
         game_text = (f"🃏 <b>Джокер</b> | {mention}\n\n"
@@ -1108,20 +1104,12 @@ def joker_game_start(message):
         bot.reply_to(message, "❌ Произошла ошибка при создании игры!")
 
 
-def joker_keyboard(game_id, user_id, opened_cells, current_row, skull_positions, show_cashout=False):
+def joker_keyboard(game_id, user_id, opened_cells, current_row, max_visible_row, skull_positions, show_cashout=False):
     """Создает клавиатуру для игры"""
     kb = InlineKeyboardMarkup()
     
-    # Определяем, какие ряды уже открыты
-    opened_rows = set()
-    for row, col in opened_cells:
-        opened_rows.add(row)
-    
-    # Максимальный ряд, который нужно показать
-    max_display_row = max(current_row, max(opened_rows) if opened_rows else 0)
-    
-    # Показываем все ряды до максимального
-    for row in range(max_display_row + 1):
+    # Показываем все ряды до max_visible_row
+    for row in range(max_visible_row + 1):
         row_buttons = []
         for col in range(JOKER_COLS):
             cell = (row, col)
@@ -1130,29 +1118,25 @@ def joker_keyboard(game_id, user_id, opened_cells, current_row, skull_positions,
                 # Клетка уже открыта
                 if col == skull_positions[row]:
                     # Это череп (но он не должен быть открыт, если игрок не проиграл)
-                    # Добавим на всякий случай
                     row_buttons.append(InlineKeyboardButton("⬛", callback_data="joker_done"))
                 else:
                     # Безопасная клетка
                     row_buttons.append(InlineKeyboardButton("✅", callback_data="joker_done"))
             else:
-                if row == current_row and row not in opened_rows:
+                if row == current_row and row <= max_visible_row:
                     # Текущий ряд, который можно открывать
-                    row_buttons.append(InlineKeyboardButton(f"❓", callback_data=f"joker_open_{game_id}_{row}_{col}_{user_id}"))
+                    row_buttons.append(InlineKeyboardButton(f"🟢", callback_data=f"joker_open_{game_id}_{row}_{col}_{user_id}"))
                 else:
-                    # Ряды, которые еще недоступны (или уже пройдены)
-                    if row < current_row:
-                        # Уже пройденный ряд (все клетки открыты)
-                        row_buttons.append(InlineKeyboardButton("⬛", callback_data="joker_done"))
-                    else:
-                        # Будущие ряды (еще недоступны)
-                        row_buttons.append(InlineKeyboardButton("⬜", callback_data="joker_done"))
+                    # Недоступные ряды
+                    row_buttons.append(InlineKeyboardButton("⬜", callback_data="joker_done"))
         
         kb.row(*row_buttons)
     
     # Кнопка "Забрать выигрыш" (появляется после первого хода)
-    if show_cashout:
-        kb.add(InlineKeyboardButton(f"💸 Забрать ({format_number(int(active_joker_games[game_id]['bet'] * active_joker_games[game_id]['current_multiplier']))}$)", 
+    if show_cashout and game_id in active_joker_games:
+        game = active_joker_games[game_id]
+        current_win = int(game["bet"] * game["current_multiplier"])
+        kb.add(InlineKeyboardButton(f"💸 Забрать ({format_number(current_win)}$)", 
                                    callback_data=f"joker_cashout_{game_id}_{user_id}"))
     
     return kb
@@ -1207,15 +1191,17 @@ def joker_open_cell(call):
             
             # Показываем поле с черепом
             result_kb = InlineKeyboardMarkup()
-            for r in range(row + 1):
+            for r in range(game["max_visible_row"] + 1):
                 row_buttons = []
                 for c in range(JOKER_COLS):
                     if r == row and c == col:
                         row_buttons.append(InlineKeyboardButton("💀", callback_data="joker_done"))
                     elif c == skull_positions[r]:
                         row_buttons.append(InlineKeyboardButton("💀", callback_data="joker_done"))
-                    else:
+                    elif (r, c) in game["opened_cells"]:
                         row_buttons.append(InlineKeyboardButton("✅", callback_data="joker_done"))
+                    else:
+                        row_buttons.append(InlineKeyboardButton("⬜", callback_data="joker_done"))
                 result_kb.row(*row_buttons)
 
             text = (f"💀 {mention}, <b>ТЫ НАТКНУЛСЯ НА ЧЕРЕП!</b>\n\n"
@@ -1240,15 +1226,21 @@ def joker_open_cell(call):
         # Увеличиваем множитель
         game["current_multiplier"] = round(game["current_multiplier"] + JOKER_MULTIPLIER_PER_CELL, 2)
         
-        # Проверяем, все ли клетки в текущем ряду открыты
-        opened_in_row = [cell for cell in game["opened_cells"] if cell[0] == row]
+        # Подсчитываем, сколько безопасных клеток открыто в текущем ряду
+        safe_cells_in_row = 0
+        for opened_cell in game["opened_cells"]:
+            if opened_cell[0] == row:
+                safe_cells_in_row += 1
         
-        if len(opened_in_row) == JOKER_COLS - 1:  # Все безопасные клетки открыты (череп мы не открываем)
-            # Переходим на следующий ряд
-            game["current_row"] += 1
+        # В каждом ряду 2 безопасные клетки (3 всего, 1 череп)
+        if safe_cells_in_row == 2:  # Открыты обе безопасные клетки
+            # Переходим на следующий ряд, если он существует
+            if game["current_row"] + 1 < JOKER_ROWS:
+                game["current_row"] += 1
+                game["max_visible_row"] = max(game["max_visible_row"], game["current_row"])
         
-        # Проверяем, не достигнут ли максимум
-        if game["current_row"] >= JOKER_ROWS:
+        # Проверяем, не достигнут ли максимум рядов
+        if game["current_row"] >= JOKER_ROWS and safe_cells_in_row == 2:
             # 🎉 ПОБЕДА - пройдены все ряды
             game["active"] = False
             win_amount = int(bet * game["current_multiplier"])
@@ -1296,7 +1288,7 @@ def joker_open_cell(call):
                 f"Выбери клетку 👇")
         
         kb = joker_keyboard(game_id, user_id, game["opened_cells"], game["current_row"], 
-                           game["skull_positions"], show_cashout)
+                           game["max_visible_row"], game["skull_positions"], show_cashout)
         
         bot.edit_message_text(
             text,
@@ -1357,9 +1349,9 @@ def joker_cashout(call):
         # Показываем поле с результатом
         result_kb = InlineKeyboardMarkup()
         skull_positions = game["skull_positions"]
-        current_row = game["current_row"]
+        max_visible = game["max_visible_row"]
         
-        for r in range(current_row + 1):
+        for r in range(max_visible + 1):
             row_buttons = []
             for c in range(JOKER_COLS):
                 if (r, c) in game["opened_cells"]:
@@ -1367,13 +1359,13 @@ def joker_cashout(call):
                 elif c == skull_positions[r]:
                     row_buttons.append(InlineKeyboardButton("💀", callback_data="joker_done"))
                 else:
-                    row_buttons.append(InlineKeyboardButton("⬛", callback_data="joker_done"))
+                    row_buttons.append(InlineKeyboardButton("⬜", callback_data="joker_done"))
             result_kb.row(*row_buttons)
 
         text = (f"✅ {mention}, <b>ты забрал выигрыш!</b>\n\n"
                 f"💰 Ты получил: <code>{format_number(win_amount)}$</code>\n"
                 f"📈 Множитель: <b>x{game['current_multiplier']:.2f}</b>\n"
-                f"🎯 Открыто рядов: <b>{game['current_row']}</b>")
+                f"🎯 Открыто рядов: <b>{max_visible + 1}</b>")
 
         bot.edit_message_text(
             text,
