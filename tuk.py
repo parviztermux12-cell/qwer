@@ -20120,13 +20120,16 @@ def transfer_money(message):
         if not is_transfer_limit_exempt(sender_id):
             sender_data["daily_transfers"]["amount"] += amount
         save_casino_data()
-        update_transfer_stats(sender_id, amount, is_sender=True)
-        update_transfer_stats(recipient_id, received_amount, is_sender=False)
+        
+        # Отправка уведомления отправителю
         sender_name = f"<a href='tg://user?id={sender_id}'>{message.from_user.first_name}</a>"
         recipient_name = f"<a href='tg://user?id={recipient_id}'>{message.reply_to_message.from_user.first_name}</a>"
         text = f"🥥 Вы успешно перевели пользователю {recipient_name}\n{fee_info}🍉 Сумма перевода с комиссией: <code>{format_number(received_amount)}$</code>"
         bot.send_message(message.chat.id, text, parse_mode="HTML", disable_web_page_preview=True)
+        
+        # Логирование
         logger.info(f"Перевод: {message.from_user.first_name} → {message.reply_to_message.from_user.first_name} | Отправил: {amount}$, Получил: {received_amount}$")
+        
     except (IndexError, ValueError) as e:
         bot.reply_to(message, f"❌ Неверный формат! Использование: п [сумма] (например: п 1000, п 2k, п 5к, п 1kk, п 3кк)\nОшибка: {e}")
     except Exception as e:
