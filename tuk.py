@@ -4282,8 +4282,8 @@ def delete_message_cmd(message):
         try:
             bot.delete_message(chat_id, warning.message_id)
             bot.delete_message(chat_id, message.message_id)
-        except:
-        pass
+        except Exception as e:  # Добавлено имя исключения
+            pass  # Добавлен отступ
         return
 
     if not message.reply_to_message:
@@ -4292,8 +4292,8 @@ def delete_message_cmd(message):
         try:
             bot.delete_message(chat_id, hint.message_id)
             bot.delete_message(chat_id, message.message_id)
-        except:
-        pass
+        except Exception as e:  # Добавлено имя исключения
+            pass  # Добавлен отступ
         return
 
     try:
@@ -4305,8 +4305,8 @@ def delete_message_cmd(message):
         try:
             bot.delete_message(chat_id, error_msg.message_id)
             bot.delete_message(chat_id, message.message_id)
-        except:
-        pass
+        except Exception as e:  # Добавлено имя исключения
+            pass  # Добавлен отступ
     
     # ================== 🐝 НОВАЯ ИГРА "УЛЕЙ" (HIVE) ==================
 # Поле 4x4, ищешь мед 🍯, избегая пчел 🐝
