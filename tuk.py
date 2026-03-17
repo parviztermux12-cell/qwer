@@ -4073,12 +4073,11 @@ def my_tax_info(message):
 
 print("✅ Налоговая система загружена и готова к работе! 🧾")
     
-    # ================== АДМИН-КОМАНДЫ ДЛЯ ГРУПП (УЛУЧШЕНО) ==================
+# ================== АДМИН-КОМАНДЫ ДЛЯ ГРУПП ==================
 
 def mention(user):
     name = user.first_name or "Пользователь"
     return f'<a href="tg://user?id={user.id}">{name}</a>'
-
 
 def is_chat_admin(chat_id, user_id):
     try:
@@ -4086,7 +4085,6 @@ def is_chat_admin(chat_id, user_id):
         return member.status in ("administrator", "creator")
     except:
         return False
-
 
 def is_bot_admin(chat_id):
     try:
@@ -4096,22 +4094,33 @@ def is_bot_admin(chat_id):
     except:
         return False
 
-
 def get_target_user(message):
     if message.reply_to_message:
         return message.reply_to_message.from_user
-
-    parts = message.text.split()
-    if len(parts) >= 2:
-        try:
-            return bot.get_chat(int(parts[1]))
-        except:
-            return None
     return None
 
+# ================== КОМАНДА: /admins ==================
+@bot.message_handler(commands=['admins'])
+def admins_help(message):
+    help_text = (
+        "<b>🌰 Admin Tools | Команды администраторов для ваших чатов:</b>\n\n"
+        "1. <b>мут (время) (причина)</b> — Ограничить отправку сообщений.\n"
+        "   Пример: <code>мут 30 спам</code> (ответом на сообщение)\n\n"
+        "2. <b>снять мут</b> — Снять ограничение на отправку сообщений.\n"
+        "   Пример: ответьте на сообщение и напишите <code>снять мут</code>\n\n"
+        "3. <b>кик</b> — Исключить пользователя из чата.\n"
+        "   Пример: ответьте на сообщение и напишите <code>кик</code>\n\n"
+        "4. <b>бан</b> — Заблокировать пользователя в чате навсегда.\n"
+        "   Пример: ответьте на сообщение и напишите <code>бан</code>\n\n"
+        "5. <b>-смс</b> — Удалить сообщение.\n"
+        "   Пример: ответьте на сообщение и напишите <code>-смс</code>\n\n"
+        "⛔ <b>Важно:</b> Все команды работают ТОЛЬКО ответом на сообщение пользователя.\n"
+        "⚠️ <b>Права бота:</b> Убедитесь, что у бота есть права администратора с включенными возможностями "
+        "«Блокировка пользователей» и «Удаление сообщений»."
+    )
+    bot.reply_to(message, help_text, parse_mode="HTML")
 
 # ================== МУТ ==================
-
 @bot.message_handler(func=lambda m: m.text and m.text.lower().startswith("мут"))
 def mute_user(message):
     if message.chat.type not in ("group", "supergroup"):
@@ -4124,23 +4133,23 @@ def mute_user(message):
         return
 
     if not is_bot_admin(chat_id):
-        bot.reply_to(message, "❌ <b>Бот не администратор</b>", parse_mode="HTML")
+        bot.reply_to(message, "❌ Бот не администратор", parse_mode="HTML")
         return
 
     target = get_target_user(message)
     if not target:
-        bot.reply_to(message, "❌ <b>Ответь на сообщение или укажи ID</b>", parse_mode="HTML")
+        bot.reply_to(message, "❌ Ответьте на сообщение пользователя", parse_mode="HTML")
         return
 
     if is_chat_admin(chat_id, target.id):
-        bot.reply_to(message, "❌ <b>Нельзя мутить администратора</b>", parse_mode="HTML")
+        bot.reply_to(message, "❌ Нельзя мутить администратора", parse_mode="HTML")
         return
 
     args = message.text.split()
     if len(args) < 3:
         bot.reply_to(
             message,
-            "❌ <b>Использование:</b>\n<code>мут 60 Спам</code>",
+            "❌ Использование: мут 60 Спам (ответом на сообщение)",
             parse_mode="HTML"
         )
         return
@@ -4148,7 +4157,7 @@ def mute_user(message):
     try:
         minutes = int(args[1])
     except:
-        bot.reply_to(message, "❌ <b>Время должно быть числом</b>", parse_mode="HTML")
+        bot.reply_to(message, "❌ Время должно быть числом", parse_mode="HTML")
         return
 
     reason = " ".join(args[2:])
@@ -4163,17 +4172,11 @@ def mute_user(message):
 
     bot.reply_to(
         message,
-        f"🔇 <b>МУТ</b>\n\n"
-        f"👮 <b>Админ:</b> {mention(admin)}\n"
-        f"👤 <b>Пользователь:</b> {mention(target)}\n"
-        f"⏰ <b>Время:</b> <code>{minutes} мин</code>\n"
-        f"📝 <b>Причина:</b> <code>{reason}</code>",
+        f"🔇 Администратор чата {mention(admin)}, выдал мут на {minutes} минут пользователю {mention(target)}, причина: <code>{reason}</code>",
         parse_mode="HTML"
     )
 
-
 # ================== СНЯТЬ МУТ ==================
-
 @bot.message_handler(func=lambda m: m.text and m.text.lower().startswith("снять мут"))
 def unmute_user(message):
     if message.chat.type not in ("group", "supergroup"):
@@ -4187,7 +4190,7 @@ def unmute_user(message):
 
     target = get_target_user(message)
     if not target:
-        bot.reply_to(message, "❌ <b>Укажи пользователя</b>", parse_mode="HTML")
+        bot.reply_to(message, "❌ Ответьте на сообщение пользователя", parse_mode="HTML")
         return
 
     bot.restrict_chat_member(
@@ -4201,15 +4204,11 @@ def unmute_user(message):
 
     bot.reply_to(
         message,
-        f"🔊 <b>МУТ СНЯТ</b>\n\n"
-        f"👮 {mention(admin)}\n"
-        f"👤 {mention(target)}",
+        f"🔊 Администратор чата {mention(admin)}, снял мут с пользователя {mention(target)}",
         parse_mode="HTML"
     )
 
-
 # ================== КИК ==================
-
 @bot.message_handler(func=lambda m: m.text and m.text.lower() == "кик")
 def kick_user(message):
     if message.chat.type not in ("group", "supergroup"):
@@ -4223,11 +4222,11 @@ def kick_user(message):
 
     target = get_target_user(message)
     if not target:
-        bot.reply_to(message, "❌ <b>Укажи пользователя</b>", parse_mode="HTML")
+        bot.reply_to(message, "❌ Ответьте на сообщение пользователя", parse_mode="HTML")
         return
 
     if is_chat_admin(chat_id, target.id):
-        bot.reply_to(message, "❌ <b>Нельзя кикнуть администратора</b>", parse_mode="HTML")
+        bot.reply_to(message, "❌ Нельзя кикнуть администратора", parse_mode="HTML")
         return
 
     bot.ban_chat_member(chat_id, target.id)
@@ -4235,15 +4234,11 @@ def kick_user(message):
 
     bot.reply_to(
         message,
-        f"👢 <b>КИК</b>\n\n"
-        f"👮 {mention(admin)}\n"
-        f"👤 {mention(target)}",
+        f"👢 Администратор чата {mention(admin)}, кикнул пользователя {mention(target)}",
         parse_mode="HTML"
     )
 
-
 # ================== БАН ==================
-
 @bot.message_handler(func=lambda m: m.text and m.text.lower() == "бан")
 def ban_user(message):
     if message.chat.type not in ("group", "supergroup"):
@@ -4257,23 +4252,61 @@ def ban_user(message):
 
     target = get_target_user(message)
     if not target:
-        bot.reply_to(message, "❌ <b>Укажи пользователя</b>", parse_mode="HTML")
+        bot.reply_to(message, "❌ Ответьте на сообщение пользователя", parse_mode="HTML")
         return
 
     if is_chat_admin(chat_id, target.id):
-        bot.reply_to(message, "❌ <b>Нельзя банить администратора</b>", parse_mode="HTML")
+        bot.reply_to(message, "❌ Нельзя банить администратора", parse_mode="HTML")
         return
 
     bot.ban_chat_member(chat_id, target.id)
 
     bot.reply_to(
         message,
-        f"🚫 <b>БАН</b>\n\n"
-        f"👮 {mention(admin)}\n"
-        f"👤 {mention(target)}\n"
-        f"📌 <code>Перманентно</code>",
+        f"🚫 Администратор чата {mention(admin)}, забанил пользователя {mention(target)}",
         parse_mode="HTML"
     )
+
+# ================== УДАЛЕНИЕ СООБЩЕНИЯ ==================
+@bot.message_handler(func=lambda m: m.text and m.text.lower() == "-смс")
+def delete_message_cmd(message):
+    if message.chat.type not in ("group", "supergroup"):
+        return
+
+    chat_id = message.chat.id
+    admin = message.from_user
+
+    if admin.id not in ADMIN_IDS and not is_chat_admin(chat_id, admin.id):
+        warning = bot.send_message(chat_id, "❌ Команда доступна только администраторам!", parse_mode="HTML")
+        time.sleep(5)
+        try:
+            bot.delete_message(chat_id, warning.message_id)
+            bot.delete_message(chat_id, message.message_id)
+        except:
+        pass
+        return
+
+    if not message.reply_to_message:
+        hint = bot.send_message(chat_id, "❌ Ответьте на сообщение, которое нужно удалить!", parse_mode="HTML")
+        time.sleep(5)
+        try:
+            bot.delete_message(chat_id, hint.message_id)
+            bot.delete_message(chat_id, message.message_id)
+        except:
+        pass
+        return
+
+    try:
+        bot.delete_message(chat_id, message.reply_to_message.message_id)
+        bot.delete_message(chat_id, message.message_id)
+    except Exception as e:
+        error_msg = bot.send_message(chat_id, "❌ Не удалось удалить сообщение!", parse_mode="HTML")
+        time.sleep(5)
+        try:
+            bot.delete_message(chat_id, error_msg.message_id)
+            bot.delete_message(chat_id, message.message_id)
+        except:
+        pass
     
     # ================== 🐝 НОВАЯ ИГРА "УЛЕЙ" (HIVE) ==================
 # Поле 4x4, ищешь мед 🍯, избегая пчел 🐝
@@ -9680,10 +9713,23 @@ def marriages_list(message):
             )
             return
         
+        # СОРТИРУЕМ браки по убыванию продолжительности
+        marriages_with_days = []
+        for marriage in marriages:
+            user1_id, user2_id, user1_name, user2_name, married_at = marriage
+            days_married = get_marriage_days(married_at)
+            marriages_with_days.append((days_married, marriage))
+        
+        # Сортируем по убыванию дней
+        marriages_with_days.sort(key=lambda x: x[0], reverse=True)
+        
+        # Извлекаем отсортированные браки
+        sorted_marriages = [m[1] for m in marriages_with_days]
+        
         text = "<b>Список браков</b>\n\n"
         
-        # Показываем только топ-10
-        top_marriages = marriages[:10]
+        # Показываем только топ-10 (самые долгие браки)
+        top_marriages = sorted_marriages[:10]
         
         # Формируем список браков с индексацией
         for i, (user1_id, user2_id, user1_name, user2_name, married_at) in enumerate(top_marriages, 1):
@@ -9699,14 +9745,14 @@ def marriages_list(message):
                 f"   Продолжительность: {days_married} дней ({marriage_rank})\n\n"
             )
         
-        text += "------------------\n\n"
+        text += "------------------------------\n\n"
         
         # Проверяем, состоит ли пользователь в браке
         marriage = get_marriage(user_id)
         if marriage:
-            # Находим место пользователя в общем списке
+            # Находим место пользователя в ОТСОРТИРОВАННОМ списке
             user_place = None
-            for idx, (u1_id, u2_id, u1_name, u2_name, married_at) in enumerate(marriages, 1):
+            for idx, (u1_id, u2_id, u1_name, u2_name, married_at) in enumerate(sorted_marriages, 1):
                 if user_id in (u1_id, u2_id):
                     user_place = idx
                     partner_id = u2_id if u1_id == user_id else u1_id
@@ -9737,7 +9783,6 @@ def marriages_list(message):
             message.chat.id, 
             "Произошла ошибка при загрузке списка браков. Пожалуйста, попробуйте позже."
         )
-
 
 
 
@@ -19931,62 +19976,88 @@ def car_wash(call):
         logger.error(f"Ошибка car_wash: {e}")
         bot.send_message(call.message.chat.id, "❌ Ошибка при мойке машины.")
 
-# ================== СТАТИСТИКА ПЕРЕВОДОВ (JSON) ==================
+# ================== СИСТЕМА ЛИМИТОВ ПЕРЕВОДОВ ==================
+# Максимальная сумма переводов в день (50 млн)
+MAX_TRANSFER_DAILY = 50000000
 
-TRANSFER_STATS_FILE = "transfer_stats.json"
+# Файл для хранения исключений (пользователи без лимита)
+TRANSFER_EXCEPTIONS_FILE = "transfer_exceptions.json"
 
-def load_transfer_stats():
-    """Загружает статистику переводов из JSON"""
+def load_transfer_exceptions():
     try:
-        if os.path.exists(TRANSFER_STATS_FILE):
-            with open(TRANSFER_STATS_FILE, "r", encoding="utf-8") as f:
+        if os.path.exists(TRANSFER_EXCEPTIONS_FILE):
+            with open(TRANSFER_EXCEPTIONS_FILE, "r", encoding="utf-8") as f:
                 return json.load(f)
-        return {}
+        return []
     except Exception as e:
-        logger.error(f"Ошибка загрузки статистики переводов: {e}")
-        return {}
+        logger.error(f"Ошибка загрузки исключений переводов: {e}")
+        return []
 
-def save_transfer_stats(stats):
-    """Сохраняет статистику переводов в JSON"""
+def save_transfer_exceptions(exceptions):
     try:
-        with open(TRANSFER_STATS_FILE, "w", encoding="utf-8") as f:
-            json.dump(stats, f, ensure_ascii=False, indent=2)
+        with open(TRANSFER_EXCEPTIONS_FILE, "w", encoding="utf-8") as f:
+            json.dump(exceptions, f, ensure_ascii=False, indent=2)
     except Exception as e:
-        logger.error(f"Ошибка сохранения статистики переводов: {e}")
+        logger.error(f"Ошибка сохранения исключений переводов: {e}")
 
-def update_transfer_stats(user_id, amount, is_sender=True):
-    """Обновляет статистику переводов пользователя"""
-    stats = load_transfer_stats()
-    user_id_str = str(user_id)
-    
-    if user_id_str not in stats:
-        stats[user_id_str] = {
-            "total_sent": 0,
-            "total_received": 0
-        }
-    
-    if is_sender:
-        stats[user_id_str]["total_sent"] += amount
-    else:
-        stats[user_id_str]["total_received"] += amount
-    
-    save_transfer_stats(stats)
-    return stats[user_id_str]
+def is_transfer_limit_exempt(user_id):
+    exceptions = load_transfer_exceptions()
+    return user_id in exceptions
 
-def get_user_transfer_stats(user_id):
-    """Получает статистику переводов пользователя"""
-    stats = load_transfer_stats()
-    user_id_str = str(user_id)
-    
-    if user_id_str not in stats:
-        return {
-            "total_sent": 0,
-            "total_received": 0
-        }
-    
-    return stats[user_id_str]
+# ================== АДМИН КОМАНДА: СНЯТЬ ЛИМИТ ==================
+@bot.message_handler(func=lambda m: m.text and m.text.lower().startswith("снять лимит"))
+def admin_remove_transfer_limit(message):
+    user_id = message.from_user.id
+    if user_id not in ADMIN_IDS:
+        return
+    try:
+        if not message.reply_to_message:
+            bot.reply_to(message, "❌ <b>Использование:</b> Ответьте на сообщение пользователя командой <code>снять лимит</code>", parse_mode="HTML")
+            return
+        target_user = message.reply_to_message.from_user
+        target_id = target_user.id
+        if target_id == user_id:
+            bot.reply_to(message, "❌ Нельзя снять лимит самому себе!", parse_mode="HTML")
+            return
+        exceptions = load_transfer_exceptions()
+        if target_id in exceptions:
+            return
+        exceptions.append(target_id)
+        save_transfer_exceptions(exceptions)
+        admin_mention = f'<a href="tg://user?id={user_id}">{message.from_user.first_name}</a>'
+        target_mention = f'<a href="tg://user?id={target_id}">{target_user.first_name}</a>'
+        bot.reply_to(message, f"✅ <b>ЛИМИТ ПЕРЕВОДОВ СНЯТ</b>\n\n🛡 Администратор: {admin_mention}\n👤 Пользователь: {target_mention}\n💰 Теперь может переводить неограниченные суммы!", parse_mode="HTML")
+        logger.info(f"Админ {user_id} снял лимит переводов для пользователя {target_id}")
+    except Exception as e:
+        bot.reply_to(message, f"❌ Ошибка: {e}")
+        logger.error(f"Ошибка в команде снять лимит: {e}")
 
-# ================== 💳 КРАСИВЫЙ ПЕРЕВОД ДЕНЕГ ==================
+# ================== АДМИН КОМАНДА: ВЕРНУТЬ ЛИМИТ ==================
+@bot.message_handler(func=lambda m: m.text and m.text.lower().startswith("вернуть лимит"))
+def admin_restore_transfer_limit(message):
+    user_id = message.from_user.id
+    if user_id not in ADMIN_IDS:
+        return
+    try:
+        if not message.reply_to_message:
+            bot.reply_to(message, "❌ <b>Использование:</b> Ответьте на сообщение пользователя командой <code>вернуть лимит</code>", parse_mode="HTML")
+            return
+        target_user = message.reply_to_message.from_user
+        target_id = target_user.id
+        exceptions = load_transfer_exceptions()
+        if target_id not in exceptions:
+            return
+        exceptions.remove(target_id)
+        save_transfer_exceptions(exceptions)
+        admin_mention = f'<a href="tg://user?id={user_id}">{message.from_user.first_name}</a>'
+        target_mention = f'<a href="tg://user?id={target_id}">{target_user.first_name}</a>'
+        bot.reply_to(message, f"🔄 <b>ЛИМИТ ПЕРЕВОДОВ ВОССТАНОВЛЕН</b>\n\n🛡 Администратор: {admin_mention}\n👤 Пользователь: {target_mention}\n💰 Теперь действует стандартный лимит: {format_number(MAX_TRANSFER_DAILY)}$ в день", parse_mode="HTML")
+        logger.info(f"Админ {user_id} вернул лимит переводов для пользователя {target_id}")
+    except Exception as e:
+        bot.reply_to(message, f"❌ Ошибка: {e}")
+        logger.error(f"Ошибка в команде вернуть лимит: {e}")
+
+# ================== 💳 ПЕРЕВОД ДЕНЕГ С ЛИМИТАМИ ==================
 
 @bot.message_handler(func=lambda m: m.text and any(
     m.text.lower().startswith(cmd) for cmd in ["п ", "перевести ", "перевод "]
@@ -19996,22 +20067,16 @@ def transfer_money(message):
         if not message.reply_to_message:
             bot.reply_to(message, "❌ Ответьте на сообщение пользователя, которому хотите перевести деньги.")
             return
-
         sender_id = message.from_user.id
         recipient_id = message.reply_to_message.from_user.id
-
         if sender_id == recipient_id:
             bot.reply_to(message, "❌ Нельзя переводить деньги самому себе!")
             return
-
         parts = message.text.split()
         if len(parts) < 2:
             bot.reply_to(message, "❌ Использование: п [сумма] (например: п 1000, п 2k, п 5к, п 1kk, п 3кк)")
             return
-
-        # Поддержка суффиксов 'k', 'к' (тысячи) и 'kk', 'кк' (миллионы)
         amount_text = parts[1].lower()
-
         if amount_text.endswith("kk") or amount_text.endswith("кк"):
             amount = int(float(amount_text[:-2]) * 1000000)
         elif amount_text.endswith("k") or amount_text.endswith("к"):
@@ -20022,69 +20087,46 @@ def transfer_money(message):
             except ValueError:
                 bot.reply_to(message, "❌ Неверный формат суммы!")
                 return
-
         if amount <= 0:
             bot.reply_to(message, "❌ Сумма должна быть положительной!")
             return
-
         sender_data = get_user_data(sender_id)
         recipient_data = get_user_data(recipient_id)
-
         if sender_data["balance"] < amount:
             bot.reply_to(message, f"❌ Недостаточно средств! Ваш баланс: {format_number(sender_data['balance'])}$")
             return
-
-        # ПРОВЕРКА ЛИМИТОВ
         max_balance = 1000000000000000000000000000000
-
         if recipient_data["balance"] + amount > max_balance:
             bot.reply_to(message, f"❌ У получателя достигнут максимальный баланс ({format_number(max_balance)}$)!")
             return
-
-        # Применяем комиссию 10% если сумма больше 100,000
+        if not is_transfer_limit_exempt(sender_id):
+            today = date.today().isoformat()
+            if sender_data["daily_transfers"]["date"] != today:
+                sender_data["daily_transfers"] = {"date": today, "amount": 0}
+                save_casino_data()
+            if sender_data["daily_transfers"]["amount"] + amount > MAX_TRANSFER_DAILY:
+                remaining = MAX_TRANSFER_DAILY - sender_data["daily_transfers"]["amount"]
+                bot.reply_to(message, f"❌ Вы превысили дневной лимит переводов ({format_number(MAX_TRANSFER_DAILY)}$)!\n💰 Осталось доступно сегодня: {format_number(remaining)}$\n\n<i>Лимит обнуляется каждый день в 00:00 по МСК</i>", parse_mode="HTML")
+                return
         fee = 0
-        received_amount = amount  # Сумма, которую получит получатель
+        received_amount = amount
         fee_info = ""
-
         if amount > 100000:
             fee = int(amount * 0.10)
             received_amount = amount - fee
             fee_info = f"💸 <b>Комиссия (10%):</b> <code>-{format_number(fee)}$</code>\n"
-
-        # Переводим
         sender_data["balance"] -= amount
-        recipient_data["balance"] = min(
-            recipient_data["balance"] + received_amount, max_balance
-        )
+        recipient_data["balance"] = min(recipient_data["balance"] + received_amount, max_balance)
+        if not is_transfer_limit_exempt(sender_id):
+            sender_data["daily_transfers"]["amount"] += amount
         save_casino_data()
-
-        # Сохраняем статистику переводов
         update_transfer_stats(sender_id, amount, is_sender=True)
         update_transfer_stats(recipient_id, received_amount, is_sender=False)
-
-        # Кликабельные имена
         sender_name = f"<a href='tg://user?id={sender_id}'>{message.from_user.first_name}</a>"
         recipient_name = f"<a href='tg://user?id={recipient_id}'>{message.reply_to_message.from_user.first_name}</a>"
-
-        # ИСПРАВЛЕННЫЙ ТЕКСТ: Показываем, сколько получил получатель
-        text = (
-            f"🥥 Вы успешно перевели пользователю {recipient_name}\n"
-            f"{fee_info}"  # Добавляем инфо о комиссии (если была)
-            f"🍉 Сумма перевода с комиссией: <code>{format_number(received_amount)}$</code>"
-        )
-
-        bot.send_message(
-            message.chat.id,
-            text,
-            parse_mode="HTML",
-            disable_web_page_preview=True
-        )
-
-        logger.info(
-            f"Перевод: {message.from_user.first_name} → {message.reply_to_message.from_user.first_name} | "
-            f"Отправил: {amount}$, Получил: {received_amount}$"
-        )
-
+        text = f"🥥 Вы успешно перевели пользователю {recipient_name}\n{fee_info}🍉 Сумма перевода с комиссией: <code>{format_number(received_amount)}$</code>"
+        bot.send_message(message.chat.id, text, parse_mode="HTML", disable_web_page_preview=True)
+        logger.info(f"Перевод: {message.from_user.first_name} → {message.reply_to_message.from_user.first_name} | Отправил: {amount}$, Получил: {received_amount}$")
     except (IndexError, ValueError) as e:
         bot.reply_to(message, f"❌ Неверный формат! Использование: п [сумма] (например: п 1000, п 2k, п 5к, п 1kk, п 3кк)\nОшибка: {e}")
     except Exception as e:
