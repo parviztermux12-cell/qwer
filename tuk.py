@@ -12161,32 +12161,29 @@ def start_roulette(message):
             try:
                 player_data = get_user_data(int(player_id))
                 for bet in bets:
-                    # Получаем имя игрока
-                    if 'mention' in bet and bet['mention']:
-                        player_name = bet['mention'].split('>')[1].split('<')[0] if '>' in bet['mention'] else "Игрок"
-                    else:
-                        player_name = "Игрок"
+                    # Используем mention из ставки (там уже есть кликабельная ссылка)
+                    player_mention = bet.get('mention', f'<a href="tg://user?id={player_id}">Игрок</a>')
                     
                     # Определяем тип ставки и формируем строку
                     if bet["type"] == "color":
                         color_text = "RED" if bet["value"] == 'к' else "BLACK" if bet["value"] == 'ч' else "GREEN"
-                        bet_line = f"{player_name} {format_number(bet['amount'])} izzzy на {color_text}"
+                        bet_line = f"{player_mention} {format_number(bet['amount'])} izzzy на {color_text}"
                     elif bet["type"] == "single":
                         if len(bet["value"]) == 1:
-                            bet_line = f"{player_name} {format_number(bet['amount'])} izzzy на {bet['value'][0]}"
+                            bet_line = f"{player_mention} {format_number(bet['amount'])} izzzy на {bet['value'][0]}"
                         else:
                             # Для нескольких чисел
                             numbers_str = ', '.join(str(n) for n in bet['value'])
-                            bet_line = f"{player_name} {format_number(bet['amount'])} izzzy на {numbers_str}"
+                            bet_line = f"{player_mention} {format_number(bet['amount'])} izzzy на {numbers_str}"
                     elif bet["type"] == "range":
-                        bet_line = f"{player_name} {format_number(bet['amount'])} izzzy на {bet['start']}-{bet['end']}"
+                        bet_line = f"{player_mention} {format_number(bet['amount'])} izzzy на {bet['start']}-{bet['end']}"
                     else:
-                        bet_line = f"{player_name} {format_number(bet['amount'])} izzzy"
-                    
-                    result_lines.append(bet_line)
+                        bet_line = f"{player_mention} {format_number(bet['amount'])} izzzy"
                     
                     # Проверяем выигрыш
                     won = False
+                    win_amount = 0
+                    
                     if bet["type"] == "color":
                         if bet["value"] == result_color:
                             won = True
@@ -12202,6 +12199,9 @@ def start_roulette(message):
                     
                     if won:
                         player_data["balance"] += win_amount
+                        bet_line += " | WIN"
+                    
+                    result_lines.append(bet_line)
                 
                 save_casino_data()
                 
@@ -13254,7 +13254,7 @@ def mines_keyboard(user_id, reveal_all=False, hide_buttons=False):
             # Кнопка забрать выигрыш во время игры
             current_win = int(u["mines_bet"] * u["mines_multiplier"])
             kb.row(  
-                InlineKeyboardButton(f"💸 Забрать выигрыш ({format_number(current_win)}$)", 
+                InlineKeyboardButton(f"💸 Забрать выигрыш", 
                                     callback_data=f"mines_cash_{user_id}")  
             )  
 
