@@ -985,225 +985,7 @@ def list_cheques(message):
 
     bot.send_message(message.chat.id, text, parse_mode="HTML")
     
-# ================== 🃏 БАККАРА ==================
-import random
-import uuid
 
-active_baccarat_games = {}
-
-BACCARAT_RANKS = {
-    "2": 2, "3": 3, "4": 4, "5": 5, "6": 6, "7": 7, "8": 8, "9": 9,
-    "10": 0, "J": 0, "Q": 0, "K": 0, "A": 1
-}
-BACCARAT_SUITS = ["♠", "♥", "♦", "♣"]
-
-def create_baccarat_deck():
-    deck = [(rank, suit) for rank in BACCARAT_RANKS for suit in BACCARAT_SUITS]
-    random.shuffle(deck)
-    return deck
-
-def baccarat_value(hand):
-    total = sum(BACCARAT_RANKS[card[0]] for card in hand)
-    return total % 10
-
-def baccarat_player_draw(value):
-    return value <= 5
-
-def baccarat_banker_draw(value, player_third=None):
-    if player_third is None:
-        return value <= 5
-    card_val = BACCARAT_RANKS[player_third[0]]
-    if value <= 2: return True
-    if value == 3: return card_val != 8
-    if value == 4: return card_val in [2,3,4,5,6,7]
-    if value == 5: return card_val in [4,5,6,7]
-    if value == 6: return card_val in [6,7]
-    return False
-
-@bot.message_handler(func=lambda m: m.text and m.text.lower().startswith("баккара"))
-def baccarat_start(message):
-    try:
-        user_id = message.from_user.id
-        mention = f'<a href="tg://user?id={user_id}">{message.from_user.first_name}</a>'
-        user_data = get_user_data(user_id)
-
-        parts = message.text.split()
-        if len(parts) < 2:
-            bot.reply_to(message,
-                f"{mention}, укажи ставку\n\n"
-                f"🃏 Баккара\n"
-                f"• Ставка на игрока (x2)\n"
-                f"• Ставка на банкира (x2)\n"
-                f"• Ставка на ничью (x8)\n\n"
-                f"Пример: баккара 1000",
-                parse_mode="HTML")
-            return
-
-        try:
-            bet = int(parts[1])
-            if bet <= 0:
-                bot.reply_to(message, "❌ Ставка должна быть больше 0")
-                return
-        except ValueError:
-            bot.reply_to(message, "❌ Ставка должна быть числом")
-            return
-
-        if user_data["balance"] < bet:
-            bot.reply_to(message,
-                f"❌ {mention}, недостаточно средств\n"
-                f"Нужно: {format_number(bet)} izzzy\n"
-                f"У тебя: {format_number(user_data['balance'])} izzzy",
-                parse_mode="HTML")
-            return
-
-        game_id = str(uuid.uuid4())[:8]
-        
-        kb = InlineKeyboardMarkup(row_width=2)
-        kb.add(
-            InlineKeyboardButton("👤 Игрок", callback_data=f"bac_player_{game_id}_{user_id}"),
-            InlineKeyboardButton("🏦 Банкир", callback_data=f"bac_banker_{game_id}_{user_id}")
-        )
-        kb.add(
-            InlineKeyboardButton("🤝 Ничья", callback_data=f"bac_tie_{game_id}_{user_id}"),
-            InlineKeyboardButton("✖️ Отмена", callback_data=f"bac_cancel_{game_id}_{user_id}")
-        )
-
-        active_baccarat_games[game_id] = {
-            "user_id": user_id,
-            "bet": bet,
-            "status": "waiting",
-            "active": True
-        }
-
-        text = f"🃏 Баккара | {mention}\n\n💰 Ставка: {format_number(bet)} izzzy\n\n👇 Выбери ставку:"
-        msg = bot.send_message(message.chat.id, text, parse_mode="HTML", reply_markup=kb)
-        active_baccarat_games[game_id]["message_id"] = msg.message_id
-        active_baccarat_games[game_id]["chat_id"] = message.chat.id
-
-        try:
-            bot.delete_message(message.chat.id, message.message_id)
-        except:
-            pass
-
-    except Exception as e:
-        logger.error(f"Ошибка баккары: {e}")
-        bot.reply_to(message, "❌ Ошибка при создании игры")
-
-@bot.callback_query_handler(func=lambda c: c.data.startswith("bac_"))
-def baccarat_callback(call):
-    try:
-        parts = call.data.split("_")
-        action = parts[1]
-        game_id = parts[2]
-        owner_id = int(parts[3])
-
-        if call.from_user.id != owner_id:
-            bot.answer_callback_query(call.id, "❌ Это не твоя игра", show_alert=True)
-            return
-
-        game = active_baccarat_games.get(game_id)
-        if not game or not game["active"]:
-            bot.answer_callback_query(call.id, "❌ Игра не найдена", show_alert=True)
-            return
-
-        if action == "cancel":
-            user_data = get_user_data(owner_id)
-            user_data["balance"] += game["bet"]
-            save_casino_data()
-            game["active"] = False
-            bot.edit_message_text(
-                f"✖️ Игра отменена, деньги возвращены",
-                game["chat_id"],
-                game["message_id"],
-                parse_mode="HTML"
-            )
-            del active_baccarat_games[game_id]
-            bot.answer_callback_query(call.id)
-            return
-
-        if game["status"] != "waiting":
-            bot.answer_callback_query(call.id, "❌ Игра уже начата")
-            return
-
-        user_data = get_user_data(owner_id)
-        deck = create_baccarat_deck()
-        
-        player_hand = [deck.pop(), deck.pop()]
-        banker_hand = [deck.pop(), deck.pop()]
-        
-        player_value = baccarat_value(player_hand)
-        banker_value = baccarat_value(banker_hand)
-        
-        player_third = None
-        banker_third = None
-        result_text = ""
-        
-        # Правила третьей карты
-        if baccarat_player_draw(player_value) and len(player_hand) == 2:
-            player_third = deck.pop()
-            player_hand.append(player_third)
-            player_value = baccarat_value(player_hand)
-            
-            if baccarat_banker_draw(banker_value, player_third):
-                banker_third = deck.pop()
-                banker_hand.append(banker_third)
-                banker_value = baccarat_value(banker_hand)
-        else:
-            if baccarat_banker_draw(banker_value):
-                banker_third = deck.pop()
-                banker_hand.append(banker_third)
-                banker_value = baccarat_value(banker_hand)
-        
-        # Определение победителя
-        if player_value > banker_value:
-            winner = "player"
-            result_text = "👤 Победил игрок"
-        elif banker_value > player_value:
-            winner = "banker"
-            result_text = "🏦 Победил банкир"
-        else:
-            winner = "tie"
-            result_text = "🤝 Ничья"
-        
-        # Расчет выигрыша
-        win_amount = 0
-        if (action == "player" and winner == "player") or (action == "banker" and winner == "banker"):
-            win_amount = game["bet"] * 2
-            user_data["balance"] += win_amount
-        elif action == "tie" and winner == "tie":
-            win_amount = game["bet"] * 8
-            user_data["balance"] += win_amount
-        elif winner == "tie" and action in ["player", "banker"]:
-            win_amount = game["bet"]
-            user_data["balance"] += win_amount
-            result_text += " (возврат ставки)"
-        
-        save_casino_data()
-        game["active"] = False
-        
-        # Формирование красивого вывода
-        player_cards = " ".join([f"{r}{s}" for r, s in player_hand])
-        banker_cards = " ".join([f"{r}{s}" for r, s in banker_hand])
-        
-        text = (
-            f"🃏 Баккара | Результат\n\n"
-            f"👤 Игрок: {player_cards} = {player_value}\n"
-            f"🏦 Банкир: {banker_cards} = {banker_value}\n\n"
-            f"{result_text}\n"
-        )
-        
-        if win_amount > 0:
-            text += f"💰 Выигрыш: {format_number(win_amount)} izzzy"
-        else:
-            text += f"❌ Проигрыш: {format_number(game['bet'])} izzzy"
-        
-        bot.edit_message_text(text, game["chat_id"], game["message_id"], parse_mode="HTML")
-        del active_baccarat_games[game_id]
-        bot.answer_callback_query(call.id)
-
-    except Exception as e:
-        logger.error(f"Ошибка баккары: {e}")
-        bot.answer_callback_query(call.id, "❌ Ошибка", show_alert=True)
 
 # ================== 🎲 КЕНО (KENO) ==================
 import random
@@ -1246,6 +1028,10 @@ def keno_start(message):
                 f"У тебя: {format_number(user_data['balance'])} izzzy",
                 parse_mode="HTML")
             return
+
+        # ✅ СПИСЫВАЕМ СТАВКУ СРАЗУ
+        user_data["balance"] -= bet
+        save_casino_data()
 
         game_id = str(uuid.uuid4())[:8]
         
@@ -1408,9 +1194,6 @@ def keno_done(call):
             bot.answer_callback_query(call.id, f"❌ Нужно выбрать ровно {game['max_select']} чисел", show_alert=True)
             return
 
-        # Списываем ставку
-        user_data = get_user_data(owner_id)
-        user_data["balance"] -= game["bet"]
         
         # Генерируем 10 случайных чисел
         drawn_numbers = sorted(random.sample(range(1, 41), 10))
@@ -1648,6 +1431,10 @@ def bingo_start(message):
                 parse_mode="HTML")
             return
 
+        # ✅ СПИСЫВАЕМ СТАВКУ С СОЗДАТЕЛЯ СРАЗУ
+        user_data["balance"] -= bet
+        save_casino_data()
+
         room_id = str(uuid.uuid4())[:8]
         
         # Создаем комнату
@@ -1722,6 +1509,10 @@ def bingo_join(call):
             bot.answer_callback_query(call.id, f"❌ Недостаточно средств. Нужно {format_number(room.bet)} izzzy", show_alert=True)
             return
 
+        # ✅ СПИСЫВАЕМ СТАВКУ С ПРИСОЕДИНЯЮЩЕГОСЯ СРАЗУ
+        user_data["balance"] -= room.bet
+        save_casino_data()
+
         # Добавляем игрока
         room.players.append(user_id)
         room.player_names[user_id] = call.from_user.first_name
@@ -1778,11 +1569,11 @@ def bingo_start_game(call):
             bot.answer_callback_query(call.id, "❌ Нужно минимум 2 игрока", show_alert=True)
             return
 
-        # Списываем ставки со всех игроков
-        for pid in room.players:
-            user_data = get_user_data(pid)
-            user_data["balance"] -= room.bet
-        save_casino_data()
+        # ❌ УБИРАЕМ ПОВТОРНОЕ СПИСАНИЕ - ставки уже списаны
+        # for pid in room.players:
+        #     user_data = get_user_data(pid)
+        #     user_data["balance"] -= room.bet
+        # save_casino_data()
 
         room.status = "playing"
         room.called_numbers = []
@@ -1812,6 +1603,7 @@ def bingo_start_game(call):
         logger.error(f"Ошибка начала бинго: {e}")
         bot.answer_callback_query(call.id, "❌ Ошибка", show_alert=True)
 
+
 @bot.callback_query_handler(func=lambda c: c.data.startswith("bingo_call_"))
 def bingo_call_number(call):
     try:
@@ -1822,6 +1614,16 @@ def bingo_call_number(call):
         room = bingo_rooms.get(room_id)
         if not room or room.status != "playing":
             bot.answer_callback_query(call.id, "❌ Игра не активна", show_alert=True)
+            return
+
+        # Проверяем, что вызывающий - один из игроков
+        if call.from_user.id not in room.players:
+            bot.answer_callback_query(call.id, "❌ Ты не в этой игре", show_alert=True)
+            return
+
+        # Проверяем, не вызваны ли уже все числа
+        if len(room.called_numbers) >= 75:
+            bot.answer_callback_query(call.id, "❌ Все числа уже вызваны", show_alert=True)
             return
 
         # Генерируем новое число (1-75)
@@ -1856,24 +1658,30 @@ def bingo_call_number(call):
             reply_markup=kb
         )
         
-        # Отправляем карточки всем игрокам (в личку)
+        # Отмечаем число на карточках всех игроков
         for pid in room.players:
             try:
-                # Отмечаем число на карточке игрока
                 card_data = room.player_cards[pid]
-                if num in [cell for row in card_data["card"] for cell in row if cell != "FREE"]:
-                    card_data["marked"].add(num)
+                # Ищем число в карточке
+                for row in card_data["card"]:
+                    for cell in row:
+                        if cell == num:
+                            card_data["marked"].add(num)
+                            break
                 
-                card_text = format_bingo_card(card_data["card"], card_data["marked"])
-                bot.send_message(pid, f"🎯 Твоя карточка:\n{card_text}", parse_mode="Markdown")
-            except:
-                pass
+                # Отправляем обновленную карточку только если число было в карточке
+                if num in card_data["marked"]:
+                    card_text = format_bingo_card(card_data["card"], card_data["marked"])
+                    bot.send_message(pid, f"🎯 Обновление карточки:\n{card_text}", parse_mode="Markdown")
+            except Exception as e:
+                logger.error(f"Ошибка отправки карточки игроку {pid}: {e}")
         
         bot.answer_callback_query(call.id, f"✅ Выпало {letter}-{num}")
 
     except Exception as e:
         logger.error(f"Ошибка вызова числа: {e}")
         bot.answer_callback_query(call.id, "❌ Ошибка", show_alert=True)
+
 
 @bot.callback_query_handler(func=lambda c: c.data.startswith("bingo_check_"))
 def bingo_check(call):
@@ -1888,6 +1696,11 @@ def bingo_check(call):
             return
 
         user_id = call.from_user.id
+        
+        # Проверяем, что игрок в этой игре
+        if user_id not in room.players:
+            bot.answer_callback_query(call.id, "❌ Ты не в этой игре", show_alert=True)
+            return
         
         # Проверяем бинго для этого игрока
         card_data = room.player_cards[user_id]
@@ -1931,6 +1744,7 @@ def bingo_check(call):
         logger.error(f"Ошибка проверки бинго: {e}")
         bot.answer_callback_query(call.id, "❌ Ошибка", show_alert=True)
 
+
 @bot.callback_query_handler(func=lambda c: c.data.startswith("bingo_cancel_"))
 def bingo_cancel(call):
     try:
@@ -1947,14 +1761,15 @@ def bingo_cancel(call):
             bot.answer_callback_query(call.id, "❌ Ты не в этой игре", show_alert=True)
             return
 
-        # Возвращаем деньги создателю
+        # ✅ ВОЗВРАЩАЕМ ДЕНЬГИ ВСЕМ ИГРОКАМ
         if room.status == "waiting":
-            user_data = get_user_data(creator_id)
-            user_data["balance"] += room.bet
+            for pid in room.players:
+                user_data = get_user_data(pid)
+                user_data["balance"] += room.bet
             save_casino_data()
 
         bot.edit_message_text(
-            f"✖️ Игра отменена",
+            f"✖️ Игра отменена, деньги возвращены всем игрокам",
             room.chat_id,
             room.message_id,
             parse_mode="HTML"
@@ -1966,8 +1781,6 @@ def bingo_cancel(call):
     except Exception as e:
         logger.error(f"Ошибка отмены бинго: {e}")
         bot.answer_callback_query(call.id, "❌ Ошибка", show_alert=True)
-
-print("✅ Игры баккара, кено и бинго успешно добавлены!")
    
 
 # ================== 🃏 НОВАЯ ИГРА "ДЖОКЕР" (JOKER) ==================
@@ -15003,7 +14816,6 @@ HELP_CONTENT = {
 [🪙] <b>рб [ставка] [орёл/решка]</b>
 [🎲] <b>кубик [ставка]</b>
 [⭕] <b>кнб [ставка]</b>
-[🃏] <b>баккара [ставка]</b>
 [🎲] <b>кено [ставка]</b>
 [🎯] <b>бинго [ставка] [игроки]</b>
 [🔴] <b>[ставка] к/ч</b>
